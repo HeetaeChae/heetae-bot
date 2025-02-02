@@ -232,7 +232,13 @@ export class AgodaService {
 
   // 스크립트 만들기
   createScript(hotelInfos: HotelInfo[]) {
-    const headLine = '';
+    const headLine = `
+아시아 여행의 허브, 태국 방콕 
+무더운 여름 호캉스하기 좋은
+5성급 럭셔리호텔 top3를 준비했습니다.
+매일 아침 호텔추천을 받고 싶으시면
+구독 눌러주세요.
+`;
     const shorts = [];
     for (const hotelInfo of hotelInfos) {
       const { name, price, score, reviewCount, summary, rank } = hotelInfo;
