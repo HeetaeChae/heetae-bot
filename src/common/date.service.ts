@@ -13,4 +13,9 @@ export class DateService {
     const dayRange = [startDate, endDate].map((day) => day.split('-')[2]);
     return dayRange;
   }
+
+  getTodayDate(): string {
+    const todayDate = dayjs().format('YYYY-MM-DD');
+    return todayDate;
+  }
 }
