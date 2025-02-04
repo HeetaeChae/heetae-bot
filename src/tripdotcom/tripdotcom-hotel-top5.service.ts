@@ -5,18 +5,35 @@ import * as path from 'path';
 import { PuppeteerService } from 'src/common/puppeteer.service';
 import { UtilsService } from 'src/common/utils.service';
 import { DateService } from 'src/common/date.service';
-import { HotelInfo, Star } from './agoda.dto';
+import { HotelInfo, Star } from './tripdotcom.dto';
 import { Logger } from '@nestjs/common';
 
 @Injectable()
-export class AgodaService {
+export class TripdotcomHotelTop5Service {
   private logger = new Logger();
+  private savePath: string;
 
   constructor(
     private puppeteerService: PuppeteerService,
     private utilsService: UtilsService,
     private dateService: DateService,
-  ) {}
+  ) {
+    this.initializeSavePath();
+  }
+
+  // 이미지 저장경로 초기화
+  private initializeSavePath() {
+    const root = path.resolve('.');
+    this.savePath = path.join(
+      root,
+      'screenshot',
+      'tripdotcom',
+      this.dateService.getTodayDate(),
+    );
+    if (!fs.existsSync(this.savePath)) {
+      fs.mkdirSync(this.savePath, { recursive: true });
+    }
+  }
 
   // 숙소(호텔) 검색 페이지로 이동
   async goToSearchPage(page: Page): Promise<void> {
@@ -120,7 +137,7 @@ export class AgodaService {
     return detail;
   }
 
-  // 호텔 이미지 urls 가져오기
+  // 호텔 이미지 url 목록
   async getHotelImgUrls(hotelPage: Page): Promise<string[]> {
     const imgUrls = [];
     // 이미지 선택기 목록 가져오기
@@ -143,6 +160,21 @@ export class AgodaService {
       await this.utilsService.delayRandomTime('slow');
     }
     return imgUrls;
+  }
+
+  // 호텔 객실 정보 이미지 캡쳐
+  async captureHotelRoomImg(hotelPage: Page, hotelName: string): Promise<void> {
+    const roomImgs = await hotelPage.$$(
+      '.mainRoomList__UlISo > .commonRoomCard__BpNjl',
+    );
+    const firstRoomImg = roomImgs[0];
+    // 호텔 객실 정보 이미지가 보일 때 까지 스크롤
+    await hotelPage.evaluate((element) => {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, firstRoomImg);
+    const imgName = `${hotelName}_객실정보.png`;
+    const imgPath = path.join(this.savePath, imgName);
+    await firstRoomImg.screenshot({ path: imgPath });
   }
 
   // 호텔 정보 가져오기
@@ -198,6 +230,8 @@ export class AgodaService {
       await this.utilsService.delayRandomTime('slow');
       // 이미지 url 목록
       const hotelImgUrls = await this.getHotelImgUrls(hotelPage);
+      // 객실정보 캡쳐
+      await this.captureHotelRoomImg(hotelPage, hotelName);
 
       const hotelInfo = {
         name: hotelName,
@@ -218,17 +252,6 @@ export class AgodaService {
   // 호텔 이미지 목록 캡쳐하기
   async captureHotelImgs(page: Page, hotelInfos: HotelInfo[]) {
     try {
-      // 이미지 저장 경로
-      const root = path.resolve('.');
-      const savePath = path.join(
-        root,
-        'screenshot',
-        'tripdotcom',
-        this.dateService.getTodayDate(),
-      );
-      if (!fs.existsSync(savePath)) {
-        fs.mkdirSync(savePath, { recursive: true });
-      }
       for (const hotelInfo of hotelInfos) {
         const { name: hotelName, imgUrls } = hotelInfo;
         let imgNum = 1;
@@ -241,9 +264,8 @@ export class AgodaService {
           // 이미지 캡쳐
           const imgElement = await page.waitForSelector('img');
           const imgName = `${hotelName}_${imgNum}.png`;
-          await imgElement.screenshot({
-            path: path.join(savePath, imgName),
-          });
+          const imgPath = path.join(this.savePath, imgName);
+          await imgElement.screenshot({ path: imgPath });
           imgNum += 1;
         }
       }
@@ -298,7 +320,7 @@ export class AgodaService {
     console.log('-------------------------------------');
   }
 
-  async getHotelInfosByCity(city: string, star: Star) {
+  async getHotelTop5(city: string, star: Star) {
     const { browser, page } = await this.puppeteerService.getBrowser();
     try {
       this.logger.log('Processing: 숙소(호텔) 검색 페이지로 이동');
