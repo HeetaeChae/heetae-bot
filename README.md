@@ -52,3 +52,10 @@ Nest is [MIT licensed](LICENSE).
 
 - 호텔 추천 top5
   http://www.localhost:1994/tripdotcom/hotel-top5/방콕?star=5
+
+## 참고
+
+- 유튜브 채널 "트래블솔루션"
+  당신의 여행에 딱! 맞는 최적의 솔루션.
+  당신의 여행에 꼭 필요한 최적의 솔루션을 제시해드릴게요.
+  고민말고 트래블솔루션으로 여행준비 완료!

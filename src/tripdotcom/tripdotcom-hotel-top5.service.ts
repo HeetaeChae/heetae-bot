@@ -7,6 +7,7 @@ import { UtilsService } from 'src/common/utils.service';
 import { DateService } from 'src/common/date.service';
 import { HotelInfo, Star } from './tripdotcom.dto';
 import { Logger } from '@nestjs/common';
+import { GptService } from 'src/common/gpt.service';
 
 @Injectable()
 export class TripdotcomHotelTop5Service {
@@ -17,6 +18,7 @@ export class TripdotcomHotelTop5Service {
     private puppeteerService: PuppeteerService,
     private utilsService: UtilsService,
     private dateService: DateService,
+    private gptService: GptService,
   ) {
     this.initializeSavePath();
   }
@@ -56,7 +58,12 @@ export class TripdotcomHotelTop5Service {
   }
 
   // 검색 처리
-  async searchCity(page: Page, city: string, star: Star): Promise<void> {
+  async searchCity(
+    page: Page,
+    city: string,
+    star: Star,
+    dayRange: string[],
+  ): Promise<void> {
     try {
       // 도시명 입력
       await page.type('#hotels-destinationV8', city, { delay: 300 });
@@ -68,7 +75,6 @@ export class TripdotcomHotelTop5Service {
       const calendars = await page.$$('.c-calendar-month');
       const nextMonthCalendar = calendars[1];
       const dayElements = await nextMonthCalendar.$$('.day');
-      const dayRange = this.dateService.getTripdotcomDayRange();
       for (const day of dayRange) {
         const dayIndex = Number(day) - 1;
         await dayElements[dayIndex].click();
@@ -115,12 +121,15 @@ export class TripdotcomHotelTop5Service {
   // 로그인 페이지 처리
   async processLoginPage(page: Page): Promise<void> {
     try {
-      await this.utilsService.delayRandomTime('quick');
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load' }),
-        page.goBack(),
-      ]);
-      await this.utilsService.delayRandomTime('slow');
+      const isLoginPage = await page.$('.ibu_login_online');
+      if (isLoginPage) {
+        await this.utilsService.delayRandomTime('quick');
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: 'load' }),
+          page.goBack(),
+        ]);
+        await this.utilsService.delayRandomTime('slow');
+      }
     } catch (error) {
       throw new Error(`로그인 페이지 처리\n${error.stack}`);
     }
@@ -290,7 +299,13 @@ export class TripdotcomHotelTop5Service {
   }
 
   async createCityDescMent(city: string) {
-    return '아시아 여행의 허브, 태국 방콕.';
+    const prompt = `입력된 도시를 소개하는 멘트를 20글자 내외로 생성.\n도시: ${city}.\n예시: 전통이 살아 숨쉬는 일본의 옛 수도 교토.`;
+    try {
+      const gptResponse = await this.gptService.generateGptResponse(prompt);
+      return gptResponse;
+    } catch (error) {
+      throw new Error(error);
+    }
   }
 
   // 스크립트 만들기
@@ -314,29 +329,30 @@ export class TripdotcomHotelTop5Service {
   }
 
   // 스크립트 보여주기
-  showScript(script: string): void {
-    console.log('-------------생성된 스크립트-------------');
+  showScript(script: string, dateRange: string[]): void {
+    console.log('----------------------------------------------');
+    console.log(`기준일자: ${dateRange[0]} ~ ${dateRange[1]}`);
+    console.log('--------------------스크립트--------------------');
     console.log(script);
-    console.log('-------------------------------------');
+    console.log('----------------------------------------------');
   }
 
   async getHotelTop5(city: string, star: Star) {
     const { browser, page } = await this.puppeteerService.getBrowser();
+    const { dateRange, dayRange } = this.dateService.getTripdotcomRange();
+
     try {
       this.logger.log('Processing: 숙소(호텔) 검색 페이지로 이동');
       await this.goToSearchPage(page);
 
       this.logger.log('Processing: 검색 처리');
-      await this.searchCity(page, city, star);
+      await this.searchCity(page, city, star, dayRange);
 
       this.logger.log('Processing: 리뷰순으로 정렬');
       await this.sortByReviewCount(page);
 
       this.logger.log('Processing: 로그인 페이지 처리');
-      const isLoginPage = await page.$('.ibu_login_online');
-      if (isLoginPage) {
-        await this.processLoginPage(page);
-      }
+      await this.processLoginPage(page);
 
       this.logger.log('Processing: 호텔 정보 목록 가져오기');
       const hotelInfos = await this.getHotelInfos(page);
@@ -348,7 +364,7 @@ export class TripdotcomHotelTop5Service {
       const script = await this.createScript(hotelInfos, city, star);
 
       this.logger.log('Success: 작업을 완료하였습니다.');
-      this.showScript(script);
+      this.showScript(script, dateRange);
     } catch (error) {
       this.logger.error(`Error: ${error.message}`);
     } finally {
