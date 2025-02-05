@@ -9,8 +9,10 @@ export class DateService {
       .startOf('week')
       .format('YYYY-MM-DD');
     const endDate = dayjs(startDate).add(2, 'day').format('YYYY-MM-DD');
-    const dateRange = [startDate, endDate];
-    const dayRange = dateRange.map((day) => day.split('-')[2]);
+    const dateRange = [startDate, endDate].map((date) =>
+      dayjs(date).format('YYYY.MM.DD'),
+    );
+    const dayRange = [startDate, endDate].map((date) => date.split('-')[2]);
     return { dateRange, dayRange };
   }
 

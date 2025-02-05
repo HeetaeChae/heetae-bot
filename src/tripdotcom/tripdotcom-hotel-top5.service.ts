@@ -285,6 +285,16 @@ export class TripdotcomHotelTop5Service {
     }
   }
 
+  async createCityDescMent(city: string) {
+    const prompt = `입력된 도시를 소개하는 멘트를 20글자 내외로 생성.\n도시: ${city}.\n예시: 전통이 살아 숨쉬는 일본의 옛 수도 교토.`;
+    try {
+      const gptResponse = await this.gptService.generateGptResponse(prompt);
+      return gptResponse;
+    } catch (error) {
+      throw new Error(error);
+    }
+  }
+
   createHeadLine(star: Star) {
     switch (star) {
       case '3':
@@ -298,28 +308,32 @@ export class TripdotcomHotelTop5Service {
     }
   }
 
-  async createCityDescMent(city: string) {
-    const prompt = `입력된 도시를 소개하는 멘트를 20글자 내외로 생성.\n도시: ${city}.\n예시: 전통이 살아 숨쉬는 일본의 옛 수도 교토.`;
-    try {
-      const gptResponse = await this.gptService.generateGptResponse(prompt);
-      return gptResponse;
-    } catch (error) {
-      throw new Error(error);
-    }
+  createHashTag(city: string) {
+    return `#${city} #${city}여행 #${city}호텔 #${city}호텔추천`;
   }
 
-  // 스크립트 만들기
+  createDateStandard(dateRange: string[]) {
+    return `[가격기준일] ${dateRange[0]}(일)~${dateRange[1]}(화)`;
+  }
+
+  createTitle(city: string, star: Star) {
+    const headLine = this.createHeadLine(star);
+    const hashTag = this.createHashTag(city);
+    return `${city} ${headLine} TOP5 ${hashTag}`;
+  }
+
+  // 콘텐츠 만들기
   async createScript(
     hotelInfos: HotelInfo[],
     city: string,
     star: Star,
   ): Promise<string> {
     const cityDescMent = await this.createCityDescMent(city);
-    const headLine = `이곳에 위치한 ${this.createHeadLine(star)} top5를 준비했습니다.\n매일 최저가 호텔 추천을 받고 싶으시면 구독 눌러주세요.`;
+    const headLine = `이곳에 위치한 ${this.createHeadLine(star)} 다섯 곳을 준비했습니다.\n매일 업로드되는 호텔 추천을 받고 싶으시면 구독 눌러주세요.`;
     const shorts = [];
     for (const hotelInfo of hotelInfos) {
       const { name, price, score, reviewCount, summary, rank } = hotelInfo;
-      const short = `${rank}위 ${name}.\n${summary}\n별점 5점 만점에 ${score}점.\n등록된 ${reviewCount}.\n1박 ${price}으로 ${rank}위에 선정되었습니다.`;
+      const short = `${rank}위 ${name}.\n${summary}\n5점 만점에 ${score}점.\n${reviewCount}.\n1박 ${price}으로 ${rank}위.`;
       shorts.push(short);
     }
     const content = shorts.join('\n');
@@ -328,12 +342,27 @@ export class TripdotcomHotelTop5Service {
     return script;
   }
 
-  // 스크립트 보여주기
-  showScript(script: string, dateRange: string[]): void {
-    console.log('----------------------------------------------');
-    console.log(`기준일자: ${dateRange[0]} ~ ${dateRange[1]}`);
-    console.log('--------------------스크립트--------------------');
+  createDescField(hotelInfos: HotelInfo[], city: string, dateStandard: string) {
+    const hashTag = this.createHashTag(city);
+
+    return `${dateStandard}\n\n\n${hashTag}`;
+  }
+
+  // 생성된 콘텐츠 보여주기
+  showContents(
+    title: string,
+    script: string,
+    dateStandard: string,
+    descField: string,
+  ): void {
+    console.log('-------------------컨텐츠제목-------------------');
+    console.log(title);
+    console.log('-------------------컨텐츠대본-------------------');
     console.log(script);
+    console.log('-------------------가격기준일-------------------');
+    console.log(dateStandard);
+    console.log('-------------------설명란----------------------');
+    console.log(descField);
     console.log('----------------------------------------------');
   }
 
@@ -360,11 +389,14 @@ export class TripdotcomHotelTop5Service {
       this.logger.log('Processing: 호텔 이미지 목록 캡쳐하기');
       await this.captureHotelImgs(page, hotelInfos);
 
-      this.logger.log('Processing: 스크립트 생성하기');
+      this.logger.log('Processing: 콘텐츠 생성하기');
+      const title = this.createTitle(city, star);
       const script = await this.createScript(hotelInfos, city, star);
+      const dateStandard = this.createDateStandard(dateRange);
+      const descField = this.createDescField(hotelInfos, city, dateStandard);
 
       this.logger.log('Success: 작업을 완료하였습니다.');
-      this.showScript(script, dateRange);
+      this.showContents(title, script, dateStandard, descField);
     } catch (error) {
       this.logger.error(`Error: ${error.message}`);
     } finally {
