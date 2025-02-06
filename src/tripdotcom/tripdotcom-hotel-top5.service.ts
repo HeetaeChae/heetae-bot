@@ -190,7 +190,7 @@ export class TripdotcomHotelTop5Service {
   async getHotelInfos(page: Page): Promise<HotelInfo[]> {
     const hotelInfos = [];
     let hotelRank = 1;
-    const hotelElements = (await page.$$('.hotel-info')).slice(0, 5);
+    const hotelElements = (await page.$$('.hotel-info')).slice(0, 3);
     for (const hotelElement of hotelElements) {
       // 호텔 페이지 열기
       const [hotelPage] = await Promise.all([
@@ -312,6 +312,14 @@ export class TripdotcomHotelTop5Service {
     return `#${city} #${city}여행 #${city}호텔 #${city}호텔추천`;
   }
 
+  createLongHashTag(city: string) {
+    return `#${city} #${city}여행 #${city}호텔 #${city}호텔추천 #${city}호텔예약 #${city}가성비호텔 #${city}가성비호텔추천 #${city}가성비호텔예약 #${city}숙소 #${city}숙소추천 #${city}숙소예약 #${city}리조트 #${city}리조트추천 #${city}리조트예약 #${city}맛집 #${city}가볼만한곳 #${city}한달살기 #${city}호캉스 #${city}혼자여행 #${city}가족여행`;
+  }
+
+  createRelatedWord(city: string) {
+    return `${city}, ${city} 여행, ${city} 호텔, ${city} 호텔 추천, ${city} 호텔 예약, ${city} 가성비 호텔, ${city} 가성비 호텔 추천, ${city} 가성비 호텔 예약, ${city}숙소, ${city} 숙소 추천, ${city} 숙소 예약, ${city} 리조트, ${city} 리조트 추천, ${city} 리조트 예약, ${city} 맛집, ${city} 가볼만한곳, ${city} 한달 살기, ${city} 호캉스, ${city} 혼자 여행, ${city} 가족 여행`;
+  }
+
   createDateStandard(dateRange: string[]) {
     return `[가격기준일] ${dateRange[0]}(일)~${dateRange[1]}(화)`;
   }
@@ -319,7 +327,7 @@ export class TripdotcomHotelTop5Service {
   createTitle(city: string, star: Star) {
     const headLine = this.createHeadLine(star);
     const hashTag = this.createHashTag(city);
-    return `${city} ${headLine} TOP5 ${hashTag}`;
+    return `${city} ${headLine} TOP3 ${hashTag}`;
   }
 
   // 콘텐츠 만들기
@@ -333,7 +341,7 @@ export class TripdotcomHotelTop5Service {
     const shorts = [];
     for (const hotelInfo of hotelInfos) {
       const { name, price, score, reviewCount, summary, rank } = hotelInfo;
-      const short = `${rank}위 ${name}.\n${summary}\n5점 만점에 ${score}점.\n${reviewCount}.\n1박 ${price}으로 ${rank}위.`;
+      const short = `${rank}위 ${name}.\n${summary}\n별점 ${score}점.\n${reviewCount}.\n1박 ${price}으로 ${rank}위.`;
       shorts.push(short);
     }
     const content = shorts.join('\n');
@@ -343,27 +351,34 @@ export class TripdotcomHotelTop5Service {
   }
 
   createDescField(hotelInfos: HotelInfo[], city: string, dateStandard: string) {
-    const hashTag = this.createHashTag(city);
+    const hashTag = this.createLongHashTag(city);
+    const relatedWord = this.createRelatedWord(city);
+    const linkList = [];
+    for (const hotelInfo of hotelInfos) {
+      const { name, rank } = hotelInfo;
+      const linkText = `${rank}위. ${name}\n링크첨부`;
+      linkList.push(linkText);
+    }
+    const linkContent = linkList.join('\n\n');
 
-    return `${dateStandard}\n\n\n${hashTag}`;
+    return `${dateStandard}\n\n\n${linkContent}\n\n\n※ 호텔가격은 가격기준일에 따라 상이할 수 있습니다\n\n\n${hashTag} ${relatedWord}`;
   }
 
-  // 생성된 콘텐츠 보여주기
-  showContents(
+  // 콘텐츠 생성하기
+  createContents(
     title: string,
     script: string,
     dateStandard: string,
     descField: string,
-  ): void {
-    console.log('-------------------컨텐츠제목-------------------');
-    console.log(title);
-    console.log('-------------------컨텐츠대본-------------------');
-    console.log(script);
-    console.log('-------------------가격기준일-------------------');
-    console.log(dateStandard);
-    console.log('-------------------설명란----------------------');
-    console.log(descField);
-    console.log('----------------------------------------------');
+  ): string {
+    return `-컨텐츠제목\n${title}\n\n-컨텐츠대본\n${script}\n\n-가격기준일\n${dateStandard}\n\n-설명란\n${descField}`;
+  }
+
+  // 콘텐츠 작성하기
+  writeContents(contents: string): void {
+    const txtPath = path.join(this.savePath, '콘텐츠.txt');
+    // 파일 저장
+    fs.writeFileSync(txtPath, contents, 'utf8');
   }
 
   async getHotelTop5(city: string, star: Star) {
@@ -394,9 +409,17 @@ export class TripdotcomHotelTop5Service {
       const script = await this.createScript(hotelInfos, city, star);
       const dateStandard = this.createDateStandard(dateRange);
       const descField = this.createDescField(hotelInfos, city, dateStandard);
+      const contents = this.createContents(
+        title,
+        script,
+        dateStandard,
+        descField,
+      );
+
+      this.logger.log('Processing: 콘텐츠 작성하기');
+      this.writeContents(contents);
 
       this.logger.log('Success: 작업을 완료하였습니다.');
-      this.showContents(title, script, dateStandard, descField);
     } catch (error) {
       this.logger.error(`Error: ${error.message}`);
     } finally {
