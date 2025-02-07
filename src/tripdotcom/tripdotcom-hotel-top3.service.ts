@@ -1,18 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { Page } from 'puppeteer';
+import { ElementHandle, Page } from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PuppeteerService } from 'src/common/puppeteer.service';
 import { UtilsService } from 'src/common/utils.service';
 import { DateService } from 'src/common/date.service';
-import { HotelInfo, Star } from './tripdotcom.dto';
+import { HotelInfo, PriceInfo, Star } from './tripdotcom.dto';
 import { Logger } from '@nestjs/common';
 import { GptService } from 'src/common/gpt.service';
+import { exec } from 'child_process';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class TripdotcomHotelTop5Service {
+export class TripdotcomHotelTop3Service {
   private logger = new Logger();
   private savePath: string;
+  private configService: ConfigService;
 
   constructor(
     private puppeteerService: PuppeteerService,
@@ -61,8 +64,8 @@ export class TripdotcomHotelTop5Service {
   async searchCity(
     page: Page,
     city: string,
-    star: Star,
     dayRange: string[],
+    star?: Star,
   ): Promise<void> {
     try {
       // 도시명 입력
@@ -121,8 +124,8 @@ export class TripdotcomHotelTop5Service {
   // 로그인 페이지 처리
   async processLoginPage(page: Page): Promise<void> {
     try {
-      const isLoginPage = await page.$('.ibu_login_online');
-      if (isLoginPage) {
+      const loginModal = await page.$('.ibu_login_online');
+      if (loginModal) {
         await this.utilsService.delayRandomTime('quick');
         await Promise.all([
           page.waitForNavigation({ waitUntil: 'load' }),
@@ -136,14 +139,41 @@ export class TripdotcomHotelTop5Service {
   }
 
   // 호텔 각 상세 정보 가져오기
-  async getHotelDetail(hotelPage: Page, selector: string): Promise<string> {
-    await hotelPage.waitForSelector(selector);
-    const detail = await hotelPage.$eval(
+  async getHotelDetail(
+    hotelPageOrElement: Page | ElementHandle<Element>,
+    selector: string,
+  ): Promise<string> {
+    const isExistSelector = await hotelPageOrElement.$(selector);
+    if (!isExistSelector) {
+      return null;
+    }
+    const detail = await hotelPageOrElement.$eval(
       selector,
       (element) => (element as HTMLElement).innerText,
     );
     await this.utilsService.delayRandomTime('quick');
     return detail;
+  }
+
+  // 호텔 가격정보 가져오기
+  async getHotelPriceInfo(hotelElement: ElementHandle<Element>) {
+    const originPrice = await this.getHotelDetail(
+      hotelElement,
+      '.whole > .underline',
+    );
+    const salesPrice = await this.getHotelDetail(
+      hotelElement,
+      '.real > span > div',
+    );
+    const promotionType = await this.getHotelDetail(
+      hotelElement,
+      '.promotion-tag',
+    );
+    const promotionStatus = await this.getHotelDetail(
+      hotelElement,
+      '.discount-tag',
+    );
+    return { originPrice, salesPrice, promotionType, promotionStatus };
   }
 
   // 호텔 이미지 url 목록
@@ -192,7 +222,9 @@ export class TripdotcomHotelTop5Service {
     let hotelRank = 1;
     const hotelElements = (await page.$$('.hotel-info')).slice(0, 3);
     for (const hotelElement of hotelElements) {
-      // 호텔 페이지 열기
+      // 가격 정보
+      const hotelPriceInfo = await this.getHotelPriceInfo(hotelElement);
+      // 호텔 상세 페이지 열기
       const [hotelPage] = await Promise.all([
         new Promise<Page>((resolve) => page.once('popup', resolve)),
         hotelElement.click(),
@@ -202,11 +234,6 @@ export class TripdotcomHotelTop5Service {
       const hotelName = await this.getHotelDetail(
         hotelPage,
         '.headInit_headInit-title_nameA__EE_LB',
-      );
-      // 가격
-      const hotelPrice = await this.getHotelDetail(
-        hotelPage,
-        '.priceBox_priceBox-container_realPrice__4VuNW',
       );
       // drawer 열기
       const drawerSelector = await Promise.race([
@@ -244,7 +271,7 @@ export class TripdotcomHotelTop5Service {
 
       const hotelInfo = {
         name: hotelName,
-        price: hotelPrice,
+        priceInfo: hotelPriceInfo,
         score: hotelScore,
         reviewCount: hotelReviewCnt,
         summary: hotelSummary,
@@ -295,7 +322,7 @@ export class TripdotcomHotelTop5Service {
     }
   }
 
-  createHeadLine(star: Star) {
+  createHeadLine(star?: Star) {
     switch (star) {
       case '3':
         return '3성급 가성비 호텔';
@@ -308,7 +335,20 @@ export class TripdotcomHotelTop5Service {
     }
   }
 
-  createHashTag(city: string) {
+  createPriceInfoShort(priceInfo: PriceInfo): string {
+    const { originPrice } = priceInfo;
+    const isPromotionHotel = originPrice;
+    if (isPromotionHotel) {
+      const { salesPrice, promotionType, promotionStatus } = priceInfo;
+      const formattedStatus = promotionStatus.split(' ')[0];
+      return `1박 ${originPrice}\n링크타고 예약시\n${formattedStatus} ${promotionType}된 가격\n${salesPrice}`;
+    } else {
+      const { salesPrice } = priceInfo;
+      return `1박 ${salesPrice}`;
+    }
+  }
+
+  createShortHashTag(city: string) {
     return `#${city} #${city}여행 #${city}호텔 #${city}호텔추천`;
   }
 
@@ -324,9 +364,9 @@ export class TripdotcomHotelTop5Service {
     return `[가격기준일] ${dateRange[0]}(일)~${dateRange[1]}(화)`;
   }
 
-  createTitle(city: string, star: Star) {
+  createTitle(city: string, star?: Star) {
     const headLine = this.createHeadLine(star);
-    const hashTag = this.createHashTag(city);
+    const hashTag = this.createShortHashTag(city);
     return `${city} ${headLine} TOP3 ${hashTag}`;
   }
 
@@ -334,14 +374,15 @@ export class TripdotcomHotelTop5Service {
   async createScript(
     hotelInfos: HotelInfo[],
     city: string,
-    star: Star,
+    star?: Star,
   ): Promise<string> {
     const cityDescMent = await this.createCityDescMent(city);
-    const headLine = `이곳에 위치한 ${this.createHeadLine(star)} 다섯 곳을 준비했습니다.\n매일 업로드되는 호텔 추천을 받고 싶으시면 구독 눌러주세요.`;
+    const headLine = `이곳에 위치한 ${this.createHeadLine(star)} 세 곳을 준비했습니다.\n매일 업로드되는 호텔 추천을 받고 싶으시면 구독 눌러주세요.`;
     const shorts = [];
     for (const hotelInfo of hotelInfos) {
-      const { name, price, score, reviewCount, summary, rank } = hotelInfo;
-      const short = `${rank}위 ${name}.\n${summary}\n별점 ${score}점.\n${reviewCount}.\n1박 ${price}으로 ${rank}위.`;
+      const { name, priceInfo, score, reviewCount, summary, rank } = hotelInfo;
+      const priceInfoShort = this.createPriceInfoShort(priceInfo);
+      const short = `${rank}위 ${name}.\n${summary}\n별점 ${score}점.\n${reviewCount}.\n${priceInfoShort}으로 ${rank}위.`;
       shorts.push(short);
     }
     const content = shorts.join('\n');
@@ -381,7 +422,18 @@ export class TripdotcomHotelTop5Service {
     fs.writeFileSync(txtPath, contents, 'utf8');
   }
 
-  async getHotelTop5(city: string, star: Star) {
+  // savePath 열기
+  openSavePath(): void {
+    if (process.platform === 'win32') {
+      exec(`explorer "${this.savePath}"`); // Windows 탐색기에서 열기
+    } else if (process.platform === 'darwin') {
+      exec(`open "${this.savePath}"`); // macOS Finder에서 열기
+    } else {
+      exec(`xdg-open "${this.savePath}"`); // Linux 파일 관리자에서 열기
+    }
+  }
+
+  async getHotelTop3(city: string, star?: Star) {
     const { browser, page } = await this.puppeteerService.getBrowser();
     const { dateRange, dayRange } = this.dateService.getTripdotcomRange();
 
@@ -390,7 +442,7 @@ export class TripdotcomHotelTop5Service {
       await this.goToSearchPage(page);
 
       this.logger.log('Processing: 검색 처리');
-      await this.searchCity(page, city, star, dayRange);
+      await this.searchCity(page, city, dayRange, star);
 
       this.logger.log('Processing: 리뷰순으로 정렬');
       await this.sortByReviewCount(page);
@@ -420,10 +472,45 @@ export class TripdotcomHotelTop5Service {
       this.writeContents(contents);
 
       this.logger.log('Success: 작업을 완료하였습니다.');
+      this.openSavePath();
     } catch (error) {
       this.logger.error(`Error: ${error.message}`);
     } finally {
       await browser.close();
     }
+  }
+
+  async test(city: string, minPrice: number, maxPrice: number) {
+    const { browser, page } = await this.puppeteerService.getBrowser();
+    const { dateRange, dayRange } = this.dateService.getTripdotcomRange();
+
+    this.logger.log('Processing: 숙소(호텔) 검색 페이지로 이동');
+    await this.goToSearchPage(page);
+
+    // TODO: 네이버 로그인
+
+    this.logger.log('Processing: 검색 처리');
+    await this.searchCity(page, city, dayRange);
+
+    // TODO: 가격 범위 설정
+    const minPointer = await page.waitForSelector('.price-range-floor');
+    const maxPointer = await page.waitForSelector('.price-range-ceil');
+
+    const { x: minPointerX, y: minPointerY } = await minPointer.boundingBox();
+    const { x: maxPointerX, y: maxPointerY } = await maxPointer.boundingBox();
+    console.log(minPointerX, minPointerY, maxPointerX, maxPointerY);
+
+    // min pointer가 1px 좌측에 위치함.
+    await page.mouse.click(minPointerX + 1, minPointerY);
+    await page.mouse.down();
+    await page.mouse.move(minPointerX + 10, minPointerY);
+    await page.mouse.up();
+    await this.utilsService.delayRandomTime('quick');
+
+    await page.mouse.move(maxPointerX, maxPointerY);
+    await page.mouse.down();
+    await page.mouse.move(maxPointerX - 10, maxPointerY);
+    await page.mouse.up();
+    await this.utilsService.delayRandomTime('quick');
   }
 }

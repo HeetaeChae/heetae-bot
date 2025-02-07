@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { CommonModule } from 'src/common/common.module';
-import { TripdotcomHotelTop5Service } from './tripdotcom-hotel-top5.service';
+import { TripdotcomHotelTop3Service } from './tripdotcom-hotel-top3.service';
 import { TripdotcomController } from './tripdotcom.controller';
 
 @Module({
-  imports: [CommonModule],
+  imports: [ConfigModule, CommonModule],
   controllers: [TripdotcomController],
-  providers: [TripdotcomHotelTop5Service],
+  providers: [TripdotcomHotelTop3Service],
 })
 export class TripdotcomModule {}
