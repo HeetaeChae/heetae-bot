@@ -15,13 +15,13 @@ import { ConfigService } from '@nestjs/config';
 export class TripdotcomHotelTop3Service {
   private logger = new Logger();
   private savePath: string;
-  private configService: ConfigService;
 
   constructor(
     private puppeteerService: PuppeteerService,
     private utilsService: UtilsService,
     private dateService: DateService,
     private gptService: GptService,
+    private configService: ConfigService,
   ) {
     this.initializeSavePath();
   }
@@ -46,17 +46,44 @@ export class TripdotcomHotelTop3Service {
       // 트립닷컴 이동
       await Promise.all([
         page.waitForNavigation({ waitUntil: 'load' }),
-        page.goto('https://kr.trip.com/?locale=ko-kr'),
-      ]);
-      await this.utilsService.delayRandomTime('slow');
-      // 숙소 태그 클릭
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load' }),
-        page.click('#header_action_nav_hotels'),
+        page.goto('https://kr.trip.com/hotels/?locale=ko-kr&curr=KRW'),
       ]);
       await this.utilsService.delayRandomTime('slow');
     } catch (error) {
       throw new Error(`숙소(호텔) 검색 페이지로 이동\n${error.stack}`);
+    }
+  }
+
+  async handleLogin(page: Page) {
+    try {
+      await page.waitForSelector('.mc-hd__login-btn');
+      await page.click('.mc-hd__login-btn');
+      await this.utilsService.delayRandomTime('quick');
+
+      await page.waitForSelector('.way_icon_item.way_icon_na');
+      const [navLoginPage] = await Promise.all([
+        new Promise<Page>((resolve) => page.once('popup', resolve)),
+        page.click('.way_icon_item.way_icon_na'),
+      ]);
+      await this.utilsService.delayRandomTime('quick');
+
+      const navIdInput = await navLoginPage.$('.input_id');
+      const navPassInput = await navLoginPage.$('.input_pw');
+      await navIdInput.type(this.configService.get<string>('NAV_ID'), {
+        delay: 300,
+      });
+      await navPassInput.type(this.configService.get<string>('NAV_PASS'), {
+        delay: 300,
+      });
+      await this.utilsService.delayRandomTime('quick');
+
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'load' }),
+        navLoginPage.click('.btn_login.next_step.nlog-click'),
+      ]);
+      await this.utilsService.delayRandomTime('slow');
+    } catch (error) {
+      throw new Error(`로그인 페이지 처리\n${error.stack}`);
     }
   }
 
@@ -121,23 +148,6 @@ export class TripdotcomHotelTop3Service {
     }
   }
 
-  // 로그인 페이지 처리
-  async processLoginPage(page: Page): Promise<void> {
-    try {
-      const loginModal = await page.$('.ibu_login_online');
-      if (loginModal) {
-        await this.utilsService.delayRandomTime('quick');
-        await Promise.all([
-          page.waitForNavigation({ waitUntil: 'load' }),
-          page.goBack(),
-        ]);
-        await this.utilsService.delayRandomTime('slow');
-      }
-    } catch (error) {
-      throw new Error(`로그인 페이지 처리\n${error.stack}`);
-    }
-  }
-
   // 호텔 각 상세 정보 가져오기
   async getHotelDetail(
     hotelPageOrElement: Page | ElementHandle<Element>,
@@ -176,15 +186,15 @@ export class TripdotcomHotelTop3Service {
     return { originPrice, salesPrice, promotionType, promotionStatus };
   }
 
-  // 호텔 이미지 url 목록
-  async getHotelImgUrls(hotelPage: Page): Promise<string[]> {
+  // 호텔 시설 이미지 url 목록
+  async getHotelFacilityImgUrls(hotelPage: Page): Promise<string[]> {
     const imgUrls = [];
     // 이미지 선택기 목록 가져오기
     const imgSelectors = await hotelPage.$$('.headAlbum_headAlbum_img__vfjQm');
-    for (let i = 0; i < imgSelectors.length - 1; i += 1) {
+    for (let i = 0; i < 5; i += 1) {
       // 특정 이미지 선택기 클릭
       await imgSelectors[i].click();
-      await this.utilsService.delayRandomTime('slow');
+      await this.utilsService.delayRandomTime('quick');
       // 특정 이미지 url 가져오기
       await hotelPage.waitForSelector(
         '.EbPLUEOH7RimYsS10M9X > .VouSwSHeDhUzR1MmyiCA',
@@ -196,24 +206,65 @@ export class TripdotcomHotelTop3Service {
       imgUrls.push(imgUrl);
       // 선택된 이미지 닫기
       await hotelPage.click('.o7kWSgJIe2nzJrtBhUs0');
-      await this.utilsService.delayRandomTime('slow');
+      await this.utilsService.delayRandomTime('quick');
     }
     return imgUrls;
   }
 
-  // 호텔 객실 정보 이미지 캡쳐
-  async captureHotelRoomImg(hotelPage: Page, hotelName: string): Promise<void> {
-    const roomImgs = await hotelPage.$$(
+  // 호텔 객실 이미지 url 목록
+  async getHotelRoomImgUrls(hotelPage: Page): Promise<string[]> {
+    const imgUrls = [];
+    const imgSelectors = await hotelPage.$$(
+      '.RY8eZnahPBHWQt9CWRRW > .VouSwSHeDhUzR1MmyiCA',
+    );
+    await imgSelectors[0].click();
+    for (let i = 0; i < 5; i += 1) {
+      await this.utilsService.delayRandomTime('quick');
+      // 특정 이미지 url 가져오기
+      await hotelPage.waitForSelector(
+        '.W_JIQ1gJI3tCysgtRwwC > ._3lkI3SSl54meZjmgxmp',
+      );
+      const imgUrl = await hotelPage.$eval(
+        '.W_JIQ1gJI3tCysgtRwwC > ._3lkI3SSl54meZjmgxmp',
+        (element) => element.getAttribute('src'),
+      );
+      imgUrls.push(imgUrl);
+      // 다음 사진 보기
+      if (i < 4) {
+        const nextBtn = await hotelPage.$(
+          'nEo4SJE5PWNA8F4eFrJQ.xGABiiravxcy23y5HujR',
+        );
+        if (!nextBtn) return;
+        await nextBtn.click();
+        await this.utilsService.delayRandomTime('quick');
+      }
+    }
+    return imgUrls;
+  }
+
+  // 호텔 객실 정보 캡쳐
+  async captureHotelRoomInfoImg(
+    hotelPage: Page,
+    hotelName: string,
+  ): Promise<void> {
+    const roomInfos = await hotelPage.$$(
       '.mainRoomList__UlISo > .commonRoomCard__BpNjl',
     );
-    const firstRoomImg = roomImgs[0];
+    const firstRoomInfo = roomInfos[0];
     // 호텔 객실 정보 이미지가 보일 때 까지 스크롤
     await hotelPage.evaluate((element) => {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, firstRoomImg);
+    }, firstRoomInfo);
+    // 호텔 객실 정보 이미지 스샷 캡쳐
     const imgName = `${hotelName}_객실정보.png`;
     const imgPath = path.join(this.savePath, imgName);
-    await firstRoomImg.screenshot({ path: imgPath });
+    await firstRoomInfo.screenshot({ path: imgPath });
+    // 호텔 객실 이미지 모달 열기
+    const roomImgsModalOpener =
+      (await firstRoomInfo.$('.baseRoom-singleRoomImgBox_bigImg__BPflu')) ||
+      (await firstRoomInfo.$('.baseRoom-singleRoomImgBox_img__f31HV'));
+    await roomImgsModalOpener.click();
+    await this.utilsService.delayRandomTime('slow');
   }
 
   // 호텔 정보 가져오기
@@ -264,10 +315,13 @@ export class TripdotcomHotelTop3Service {
       // drawer 닫기
       await hotelPage.click('.drawer_drawerContainer-icon__46_Vj');
       await this.utilsService.delayRandomTime('slow');
-      // 이미지 url 목록
-      const hotelImgUrls = await this.getHotelImgUrls(hotelPage);
+      // 시설 이미지 url 목록
+      const hotelFacilityImgUrls =
+        await this.getHotelFacilityImgUrls(hotelPage);
       // 객실정보 캡쳐
-      await this.captureHotelRoomImg(hotelPage, hotelName);
+      await this.captureHotelRoomInfoImg(hotelPage, hotelName);
+      // 객실 이미지 url 목록
+      const hotelRoomImgUrls = await this.getHotelRoomImgUrls(hotelPage);
 
       const hotelInfo = {
         name: hotelName,
@@ -275,7 +329,8 @@ export class TripdotcomHotelTop3Service {
         score: hotelScore,
         reviewCount: hotelReviewCnt,
         summary: hotelSummary,
-        imgUrls: hotelImgUrls,
+        facilityImgUrls: hotelFacilityImgUrls,
+        roomImgUrls: hotelRoomImgUrls,
         rank: hotelRank,
       };
       hotelInfos.push(hotelInfo);
@@ -289,20 +344,25 @@ export class TripdotcomHotelTop3Service {
   async captureHotelImgs(page: Page, hotelInfos: HotelInfo[]) {
     try {
       for (const hotelInfo of hotelInfos) {
-        const { name: hotelName, imgUrls } = hotelInfo;
-        let imgNum = 1;
-        for (const imgUrl of imgUrls) {
-          // 이미지 페이지로 이동
-          await Promise.all([
-            page.waitForNavigation({ waitUntil: 'load' }),
-            page.goto(imgUrl),
-          ]);
-          // 이미지 캡쳐
-          const imgElement = await page.waitForSelector('img');
-          const imgName = `${hotelName}_${imgNum}.png`;
-          const imgPath = path.join(this.savePath, imgName);
-          await imgElement.screenshot({ path: imgPath });
-          imgNum += 1;
+        const { name: hotelName, facilityImgUrls, roomImgUrls } = hotelInfo;
+        const imgUrlsList = [facilityImgUrls, roomImgUrls];
+        const prefixes = ['시설', '객실'];
+        for (let i = 0; i < imgUrlsList.length; i += 1) {
+          let imgNum = 1;
+          const prefix = prefixes[i];
+          for (const imgUrl of imgUrlsList[i]) {
+            // 이미지 페이지로 이동
+            await Promise.all([
+              page.waitForNavigation({ waitUntil: 'load' }),
+              page.goto(imgUrl),
+            ]);
+            // 이미지 캡쳐
+            const imgElement = await page.waitForSelector('img');
+            const imgName = `${hotelName}_${prefix}_${imgNum}.png`;
+            const imgPath = path.join(this.savePath, imgName);
+            await imgElement.screenshot({ path: imgPath });
+            imgNum += 1;
+          }
         }
       }
     } catch (error) {
@@ -341,7 +401,7 @@ export class TripdotcomHotelTop3Service {
     if (isPromotionHotel) {
       const { salesPrice, promotionType, promotionStatus } = priceInfo;
       const formattedStatus = promotionStatus.split(' ')[0];
-      return `1박 ${originPrice}\n링크타고 예약시\n${formattedStatus} ${promotionType}된 가격\n${salesPrice}`;
+      return `1박 ${originPrice}\n링크타고 예약시\n${formattedStatus} ${promotionType}\n${salesPrice}`;
     } else {
       const { salesPrice } = priceInfo;
       return `1박 ${salesPrice}`;
@@ -349,7 +409,7 @@ export class TripdotcomHotelTop3Service {
   }
 
   createShortHashTag(city: string) {
-    return `#${city} #${city}여행 #${city}호텔 #${city}호텔추천`;
+    return `#${city} #${city}여행 #${city}호텔 #${city}호텔추천 #특가 #할인`;
   }
 
   createLongHashTag(city: string) {
@@ -364,10 +424,30 @@ export class TripdotcomHotelTop3Service {
     return `[가격기준일] ${dateRange[0]}(일)~${dateRange[1]}(화)`;
   }
 
+  createSummaryTxts(hotelInfos: HotelInfo[]) {
+    const summaryTxtList = [];
+    for (const hotelInfo of hotelInfos) {
+      const { name, priceInfo, score, reviewCount, rank } = hotelInfo;
+      const { originPrice, salesPrice, promotionType, promotionStatus } =
+        priceInfo;
+      const isPromotionHotel = originPrice;
+      const baseTxt = `${rank}위 ${name}\n⭐ 별점 ${score}점 | ${reviewCount}\n💰 1박 ${originPrice || salesPrice}원`;
+      if (isPromotionHotel) {
+        summaryTxtList.push(
+          baseTxt +
+            ` → ${promotionType} ${promotionStatus}!\n📌 ${salesPrice} (추천!)`,
+        );
+      } else {
+        summaryTxtList.push(baseTxt);
+      }
+    }
+    return summaryTxtList.join('\n\n');
+  }
+
   createTitle(city: string, star?: Star) {
     const headLine = this.createHeadLine(star);
     const hashTag = this.createShortHashTag(city);
-    return `${city} ${headLine} TOP3 ${hashTag}`;
+    return `${city} ${headLine} 특가 할인 TOP3 ${hashTag}`;
   }
 
   // 콘텐츠 만들기
@@ -377,20 +457,21 @@ export class TripdotcomHotelTop3Service {
     star?: Star,
   ): Promise<string> {
     const cityDescMent = await this.createCityDescMent(city);
-    const headLine = `이곳에 위치한 ${this.createHeadLine(star)} 세 곳을 준비했습니다.\n매일 업로드되는 호텔 추천을 받고 싶으시면 구독 눌러주세요.`;
+    const headLine = `이곳에 위치한 특가 할인 진행중인 ${this.createHeadLine(star)} 세 곳을 준비했습니다.\n매일 업로드되는 특가 호텔을 추천 받고 싶으시면 구독 눌러주세요.`;
     const shorts = [];
     for (const hotelInfo of hotelInfos) {
       const { name, priceInfo, score, reviewCount, summary, rank } = hotelInfo;
       const priceInfoShort = this.createPriceInfoShort(priceInfo);
-      const short = `${rank}위 ${name}.\n${summary}\n별점 ${score}점.\n${reviewCount}.\n${priceInfoShort}으로 ${rank}위.`;
+      const short = `${rank}위 ${name}.\n${summary}\n별점 ${score}점, ${reviewCount}.\n${priceInfoShort}으로 ${rank}위.`;
       shorts.push(short);
     }
     const content = shorts.join('\n');
-    const closingMent = '댓글을 열어 최저가 링크를 확인해주세요.';
+    const closingMent = '댓글을 열어 링크를 확인해주세요.';
     const script = `${cityDescMent}\n${headLine}\n${content}\n${closingMent}`;
     return script;
   }
 
+  // 설명란 만들기
   createDescField(hotelInfos: HotelInfo[], city: string, dateStandard: string) {
     const hashTag = this.createLongHashTag(city);
     const relatedWord = this.createRelatedWord(city);
@@ -410,9 +491,10 @@ export class TripdotcomHotelTop3Service {
     title: string,
     script: string,
     dateStandard: string,
+    summaryTxts: string,
     descField: string,
   ): string {
-    return `-컨텐츠제목\n${title}\n\n-컨텐츠대본\n${script}\n\n-가격기준일\n${dateStandard}\n\n-설명란\n${descField}`;
+    return `-컨텐츠제목\n${title}\n\n-컨텐츠대본\n${script}\n\n-가격기준일\n${dateStandard}\n\n-요약텍스트\n${summaryTxts}\n\n-설명란\n${descField}`;
   }
 
   // 콘텐츠 작성하기
@@ -441,14 +523,14 @@ export class TripdotcomHotelTop3Service {
       this.logger.log('Processing: 숙소(호텔) 검색 페이지로 이동');
       await this.goToSearchPage(page);
 
+      this.logger.log('Processing: 로그인 처리');
+      await this.handleLogin(page);
+
       this.logger.log('Processing: 검색 처리');
       await this.searchCity(page, city, dayRange, star);
 
       this.logger.log('Processing: 리뷰순으로 정렬');
       await this.sortByReviewCount(page);
-
-      this.logger.log('Processing: 로그인 페이지 처리');
-      await this.processLoginPage(page);
 
       this.logger.log('Processing: 호텔 정보 목록 가져오기');
       const hotelInfos = await this.getHotelInfos(page);
@@ -460,11 +542,13 @@ export class TripdotcomHotelTop3Service {
       const title = this.createTitle(city, star);
       const script = await this.createScript(hotelInfos, city, star);
       const dateStandard = this.createDateStandard(dateRange);
+      const summaryTxts = this.createSummaryTxts(hotelInfos);
       const descField = this.createDescField(hotelInfos, city, dateStandard);
       const contents = this.createContents(
         title,
         script,
         dateStandard,
+        summaryTxts,
         descField,
       );
 
@@ -488,6 +572,8 @@ export class TripdotcomHotelTop3Service {
     await this.goToSearchPage(page);
 
     // TODO: 네이버 로그인
+    this.logger.log('Processing: 로그인 처리');
+    await this.handleLogin(page);
 
     this.logger.log('Processing: 검색 처리');
     await this.searchCity(page, city, dayRange);
@@ -496,21 +582,38 @@ export class TripdotcomHotelTop3Service {
     const minPointer = await page.waitForSelector('.price-range-floor');
     const maxPointer = await page.waitForSelector('.price-range-ceil');
 
-    const { x: minPointerX, y: minPointerY } = await minPointer.boundingBox();
-    const { x: maxPointerX, y: maxPointerY } = await maxPointer.boundingBox();
-    console.log(minPointerX, minPointerY, maxPointerX, maxPointerY);
+    const { x: minX, y: minY } = await minPointer.boundingBox();
+    const { x: maxX, y: maxY } = await maxPointer.boundingBox();
+    console.log(minX, minY, maxX, maxY);
 
-    // min pointer가 1px 좌측에 위치함.
-    await page.mouse.click(minPointerX + 1, minPointerY);
-    await page.mouse.down();
-    await page.mouse.move(minPointerX + 10, minPointerY);
-    await page.mouse.up();
-    await this.utilsService.delayRandomTime('quick');
+    const priceTxts = await page.$$eval('.price-tooltip', (elements) =>
+      elements.map((element) => (element as HTMLElement).innerText),
+    );
+    console.log(priceTxts);
 
-    await page.mouse.move(maxPointerX, maxPointerY);
-    await page.mouse.down();
-    await page.mouse.move(maxPointerX - 10, maxPointerY);
-    await page.mouse.up();
-    await this.utilsService.delayRandomTime('quick');
+    let curMinX = minX + 1;
+    let curMaxX = maxX;
+    for (let i = 0; i < 10; i += 1) {
+      // min pointer가 1px 좌측에 위치함.
+      await page.mouse.move(curMinX, minY);
+      await page.mouse.down();
+
+      curMinX += 5;
+
+      await page.mouse.move(curMinX, minY);
+      await page.mouse.up();
+      await this.utilsService.delayRandomTime('quick');
+    }
+
+    for (let i = 0; i < 10; i += 1) {
+      await page.mouse.move(curMaxX, maxY);
+      await page.mouse.down();
+
+      curMaxX -= 5;
+
+      await page.mouse.move(curMaxX, maxY);
+      await page.mouse.up();
+      await this.utilsService.delayRandomTime('quick');
+    }
   }
 }

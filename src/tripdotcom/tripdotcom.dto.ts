@@ -14,5 +14,6 @@ export interface HotelInfo {
   reviewCount: string | null;
   summary: string | null;
   rank: number | null;
-  imgUrls: string[];
+  facilityImgUrls: string[];
+  roomImgUrls: string[];
 }
