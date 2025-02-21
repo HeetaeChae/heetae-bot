@@ -13,11 +13,8 @@ export class TripdotcomController {
     return this.tripdotcomHotelTop3Service.getHotelTop3(city, star);
   }
 
-  @Get('test/:city')
-  async test(@Param('city') city: string) {
-    const minPrice = 100000;
-    const maxPrice = 100000;
-
-    return this.tripdotcomHotelTop3Service.test(city, minPrice, maxPrice);
+  @Get('bot-test')
+  async botTest() {
+    return this.tripdotcomHotelTop3Service.botTest();
   }
 }

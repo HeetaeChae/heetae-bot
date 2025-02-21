@@ -3,11 +3,23 @@ import { PuppeteerService } from './puppeteer.service';
 import { UtilsService } from './utils.service';
 import { DateService } from './date.service';
 import { GptService } from './gpt.service';
-import { ConfigModule } from '@nestjs/config';
+import { SupabaseService } from './supabase.service';
 
 @Module({
-  imports: [ConfigModule],
-  providers: [PuppeteerService, UtilsService, DateService, GptService],
-  exports: [PuppeteerService, UtilsService, DateService, GptService],
+  imports: [],
+  providers: [
+    PuppeteerService,
+    UtilsService,
+    DateService,
+    GptService,
+    SupabaseService,
+  ],
+  exports: [
+    PuppeteerService,
+    UtilsService,
+    DateService,
+    GptService,
+    SupabaseService,
+  ],
 })
 export class CommonModule {}

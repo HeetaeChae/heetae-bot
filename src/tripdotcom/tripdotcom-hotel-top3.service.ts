@@ -564,56 +564,20 @@ export class TripdotcomHotelTop3Service {
     }
   }
 
-  async test(city: string, minPrice: number, maxPrice: number) {
+  async botTest() {
+    const pageUrl =
+      'https://velog.io/@chaeheetae/%ED%85%8C%EC%8A%A4%ED%8A%B8-%EB%89%B4%EC%8A%A4%ED%94%BD';
+
     const { browser, page } = await this.puppeteerService.getBrowser();
-    const { dateRange, dayRange } = this.dateService.getTripdotcomRange();
 
-    this.logger.log('Processing: 숙소(호텔) 검색 페이지로 이동');
-    await this.goToSearchPage(page);
+    await this.utilsService.delayRandomTime('slow');
 
-    // TODO: 네이버 로그인
-    this.logger.log('Processing: 로그인 처리');
-    await this.handleLogin(page);
+    await page.goto(pageUrl);
 
-    this.logger.log('Processing: 검색 처리');
-    await this.searchCity(page, city, dayRange);
+    await this.utilsService.delayRandomTime('slow');
 
-    // TODO: 가격 범위 설정
-    const minPointer = await page.waitForSelector('.price-range-floor');
-    const maxPointer = await page.waitForSelector('.price-range-ceil');
+    const link = await page.click('.atom-one > p > a');
 
-    const { x: minX, y: minY } = await minPointer.boundingBox();
-    const { x: maxX, y: maxY } = await maxPointer.boundingBox();
-    console.log(minX, minY, maxX, maxY);
-
-    const priceTxts = await page.$$eval('.price-tooltip', (elements) =>
-      elements.map((element) => (element as HTMLElement).innerText),
-    );
-    console.log(priceTxts);
-
-    let curMinX = minX + 1;
-    let curMaxX = maxX;
-    for (let i = 0; i < 10; i += 1) {
-      // min pointer가 1px 좌측에 위치함.
-      await page.mouse.move(curMinX, minY);
-      await page.mouse.down();
-
-      curMinX += 5;
-
-      await page.mouse.move(curMinX, minY);
-      await page.mouse.up();
-      await this.utilsService.delayRandomTime('quick');
-    }
-
-    for (let i = 0; i < 10; i += 1) {
-      await page.mouse.move(curMaxX, maxY);
-      await page.mouse.down();
-
-      curMaxX -= 5;
-
-      await page.mouse.move(curMaxX, maxY);
-      await page.mouse.up();
-      await this.utilsService.delayRandomTime('quick');
-    }
+    console.log(link);
   }
 }

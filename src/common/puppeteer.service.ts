@@ -5,12 +5,22 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 @Injectable()
 export class PuppeteerService {
-  async getBrowser(): Promise<{ browser: Browser; page: Page }> {
+  async getBrowser(
+    ip?: string,
+    port?: string,
+  ): Promise<{ browser: Browser; page: Page }> {
     puppeteer.use(StealthPlugin());
 
-    const browser = await puppeteer.launch({
-      headless: false,
-    });
+    const browser =
+      ip && port
+        ? await puppeteer.launch({
+            headless: false,
+            args: [
+              '--ignore-certificate-errors',
+              `--proxy-server=${ip}:${port}`,
+            ],
+          })
+        : await puppeteer.launch({ headless: false });
     const page = await browser.newPage();
 
     const requestHeaders = {
