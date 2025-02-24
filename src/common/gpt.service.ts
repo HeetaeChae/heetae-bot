@@ -16,12 +16,12 @@ export class GptService {
     });
   }
 
-  async generateGptResponse(prompt: string) {
+  async generateGptResponse(prompt: string, temperature: number) {
     try {
       const response = await this.openAi.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.5,
+        temperature,
       });
       return response.choices[0]?.message?.content;
     } catch (error) {
@@ -29,3 +29,20 @@ export class GptService {
     }
   }
 }
+
+/*
+import OpenAI from "openai";
+const openai = new OpenAI();
+
+const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+        { role: "developer", content: "You are a helpful assistant." },
+        {
+            role: "user",
+            content: "Write a haiku about recursion in programming.",
+        },
+    ],
+    store: true,
+});
+*/

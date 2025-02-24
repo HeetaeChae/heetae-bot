@@ -375,7 +375,7 @@ export class TripdotcomHotelTop3Service {
   async createCityDescMent(city: string) {
     const prompt = `입력된 도시를 소개하는 멘트를 20글자 내외로 생성.\n도시: ${city}.\n예시: 전통이 살아 숨쉬는 일본의 옛 수도 교토.`;
     try {
-      const gptResponse = await this.gptService.generateGptResponse(prompt);
+      const gptResponse = await this.gptService.generateGptResponse(prompt, 1);
       return gptResponse;
     } catch (error) {
       throw new Error(error);
