@@ -8,14 +8,24 @@ export class BlogController {
 
   @Get('test')
   async runTest() {
-    return this.tistoryService.stealTistoryPostings();
+    return;
   }
 
-  @Get('keywords')
+  @Get('keyword')
   async createKeywords(
     @Query('category') category: string,
-    @Query('keyword') keyword: string,
+    @Query('primaryKeyword') primaryKeyword: string,
+    @Query('longTailKeyword') longTailKeyword: string,
   ) {
-    return this.tistoryService.createKeywords(category, keyword);
+    return this.tistoryService.saveKeyword(
+      category,
+      primaryKeyword,
+      longTailKeyword,
+    );
+  }
+
+  @Get('tistory')
+  async uploadTistoryPost() {
+    return this.tistoryService.uploadTistoryPost();
   }
 }
