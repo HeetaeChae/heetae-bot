@@ -25,7 +25,7 @@ export class BlogController {
   }
 
   @Get('tistory')
-  async uploadTistoryPost() {
-    return this.tistoryService.uploadTistoryPost();
+  async handleTistoryPost() {
+    return this.tistoryService.handleTistoryPosting();
   }
 }
