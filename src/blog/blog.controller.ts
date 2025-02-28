@@ -8,7 +8,7 @@ export class BlogController {
 
   @Get('test')
   async runTest() {
-    return;
+    return this.tistoryService.connectToTistory();
   }
 
   @Get('keyword')

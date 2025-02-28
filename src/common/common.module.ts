@@ -4,6 +4,8 @@ import { UtilsService } from './utils.service';
 import { DateService } from './date.service';
 import { GptService } from './gpt.service';
 import { SupabaseService } from './supabase.service';
+import { PexelsService } from './pexels.service';
+import { YouTubeService } from './yotube.service';
 
 @Module({
   imports: [],
@@ -13,6 +15,8 @@ import { SupabaseService } from './supabase.service';
     DateService,
     GptService,
     SupabaseService,
+    PexelsService,
+    YouTubeService,
   ],
   exports: [
     PuppeteerService,
@@ -20,6 +24,8 @@ import { SupabaseService } from './supabase.service';
     DateService,
     GptService,
     SupabaseService,
+    PexelsService,
+    YouTubeService,
   ],
 })
 export class CommonModule {}

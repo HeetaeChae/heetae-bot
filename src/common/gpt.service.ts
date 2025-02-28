@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
+import OpenAI, { InternalServerError } from 'openai';
 
 @Injectable()
 export class GptService {
@@ -26,23 +26,10 @@ export class GptService {
       return response.choices[0]?.message?.content;
     } catch (error) {
       console.error(error);
+      throw new InternalServerErrorException({
+        statusCode: 500,
+        message: `gpt: gpt 요청중 오류.\n${error.message}`,
+      });
     }
   }
 }
-
-/*
-import OpenAI from "openai";
-const openai = new OpenAI();
-
-const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages: [
-        { role: "developer", content: "You are a helpful assistant." },
-        {
-            role: "user",
-            content: "Write a haiku about recursion in programming.",
-        },
-    ],
-    store: true,
-});
-*/
