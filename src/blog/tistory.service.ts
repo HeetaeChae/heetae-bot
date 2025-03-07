@@ -3,18 +3,22 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
+import * as dayjs from 'dayjs';
 import { PuppeteerService } from 'src/common/puppeteer.service';
 import { SupabaseService } from 'src/common/supabase.service';
 import { GptService } from 'src/common/gpt.service';
 import { UtilsService } from 'src/common/utils.service';
+import { PexelsService } from 'src/common/pexels.service';
+import { YouTubeService } from 'src/common/yotube.service';
+import { blogPrompts } from 'src/prompts/blog-prompts';
 
 // Node.js 환경에서 crypto 모듈 설정
 import * as crypto from 'crypto';
-import { PexelsService } from 'src/common/pexels.service';
-import { YouTubeService } from 'src/common/yotube.service';
-import { ConfigService } from '@nestjs/config';
 globalThis.crypto = crypto as Crypto;
+
+type Category = 'health' | 'pet' | 'business';
 
 @Injectable()
 export class TistoryService {
@@ -64,14 +68,14 @@ export class TistoryService {
     }
   }
 
-  async getLastPrimaryKeyword(category: string): Promise<string | null> {
+  async getLastPrimaryKeyword(category: Category): Promise<string | null> {
     try {
       const { data, error } = await this.supabaseService
         .getClient()
         .from('blog_keywords')
         .select('primary_keyword')
         .eq('category', category)
-        .order('updated_at', { ascending: false })
+        .order('posted_at', { ascending: false })
         .limit(1);
 
       if (error) throw error;
@@ -100,7 +104,7 @@ export class TistoryService {
         .select('*')
         .neq('primary_keyword', lastPrimaryKeyword)
         .eq('category', category)
-        .eq('is_used', false);
+        .is('posted_at', null);
 
       if (error) throw error;
       if (!data.length) {
@@ -144,23 +148,47 @@ export class TistoryService {
       await this.utilsService.delayRandomTime('slow');
       await page.click('.css-12wvnvt', { delay: 1000 });
 
-      // 키워드 타이핑
-      await this.utilsService.delayRandomTime('slow');
-      await page.type('.css-156cis4', keyword, { delay: 500 });
+      // 프롬프트 타이핑
+      await this.utilsService.delayRandomTime('quick');
+      await page.type(
+        '.css-156cis4',
+        blogPrompts.wrtn(keyword).replace(/\n/g, ' '),
+        { delay: 30 },
+      );
       await page.keyboard.press('Enter');
 
       // html 긁기
-      await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 10)); // 10분 대기
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 1)); // 1분 대기
       const parentEl = await page.$('#chat-room-message-1 > .css-1j17jy3');
+
+      /*
       const contentList = await parentEl.evaluate((el) => {
         return Array.from(el.children).map((child) => ({
           type: child.tagName.toLowerCase(),
           content: (child as HTMLElement).innerText.trim(),
         }));
       }, parentEl);
+      */
+
+      const domTree = await page.evaluate(() => {
+        function serializeElement(element) {
+          const tagName = element.tagName.toLowerCase();
+
+          const children = Array.from(element.childNodes)
+            .map(serializeElement)
+            .filter((child) => child !== null);
+          return {
+            type: tagName,
+            content:
+              children.length > 0 ? children : element.textContent.trim(),
+          };
+        }
+        return serializeElement(parentEl);
+      });
 
       await browser.close();
-      return contentList;
+      console.log(domTree);
+      return domTree;
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException({
@@ -178,8 +206,8 @@ export class TistoryService {
         .getClient()
         .from('blog_keywords')
         .select('*')
+        .neq('posted_at', null)
         .eq('primaryKeyword', primaryKeyword)
-        .eq('is_used', true)
         .eq('related_posting_url', null);
 
       if (error) {
@@ -205,40 +233,43 @@ export class TistoryService {
     }
   }
 
-  async createPostingContents(
-    contentList: { type: string; content: string }[],
-  ) {
-    let contents = [];
-    for (const content of contentList) {
-      switch (content.type) {
-        case 'h1':
-          break;
-        case 'h2':
-          break;
-        case 'h3':
-          break;
-        case 'p':
-          break;
-        case 'ul':
-          break;
-        case 'li':
-          break;
+  async createHtmlContent(contentList: { type: string; content: string }[]) {
+    let htmlContent = [];
+    for (const contentData of contentList) {
+      const { type, content } = contentData;
+
+      if (type === 'h1') {
+      }
+      if (type === 'h2') {
+      }
+      if (type === 'h3') {
+      }
+      if (type === 'p') {
+      }
+      if (type === 'span') {
+      }
+      if (type === 'ul') {
+      }
+      if (type === 'li') {
       }
     }
 
-    return contents;
+    return htmlContent;
   }
 
   async uploadTistoryPosting() {
     return '';
   }
 
-  async updateRelatingData(relatingId: number): Promise<void> {
+  async updateRelatingData(
+    relatingId: number,
+    postingUrl: string,
+  ): Promise<void> {
     try {
       const { error } = await this.supabaseService
         .getClient()
         .from('blog_keywords')
-        .update({ relating_posting_url: true })
+        .update({ related_posting_url: postingUrl })
         .eq('id', relatingId);
 
       if (error) throw error;
@@ -257,12 +288,13 @@ export class TistoryService {
     relatingPostingUrl: string,
   ): Promise<void> {
     try {
+      const currentTime = dayjs().format('YYYY-MM-DD HH:mm:ss');
       const { error } = await this.supabaseService
         .getClient()
         .from('blog_keywords')
         .update({
-          updated_at: '',
-          is_used: true,
+          updated_at: currentTime,
+          posted_at: currentTime,
           posting_url: postingUrl,
           relating_posting_url: relatingPostingUrl,
         })
@@ -278,52 +310,47 @@ export class TistoryService {
     }
   }
 
-  async handleTistoryPosting() {
+  async handleTistoryPosting(category: Category) {
     // 키워드 데이터 가져오기
-    const category = 'health';
     const lastPrimaryKeyword = await this.getLastPrimaryKeyword(category);
     const keywordData = await this.getKeywordData(category, lastPrimaryKeyword);
-    // 첨부할 데이터 가져오기
-    const relatingData = await this.getRelatingData(keywordData.primaryKeyword);
     // 콘텐트 리스트 가져오기
     const contentList = await this.getContentListFromWrtn(
       keywordData.longTailKeyword,
     );
+    console.log(contentList);
+    /*
     // 포스팅할 컨텐츠 생성
-    const contents = await this.createPostingContents(contentList);
+    const htmlContent = await this.createHtmlContent(contentList);
     // 포스팅 업로드
     const postingUrl = await this.uploadTistoryPosting();
+    // 첨부할 데이터 가져오기
+    const relatingData = await this.getRelatingData(keywordData.primaryKeyword);
     // 첨부된 데이터 업데이트
-    await this.updateRelatingData(relatingData.id);
+    await this.updateRelatingData(relatingData.id, postingUrl);
     // 키워드 데이터 업데이트
     await this.updateKeywordData(
       keywordData.id,
       postingUrl,
       relatingData.postingUrl,
     );
+    */
   }
 
   @Cron('0 8-23/3 * * *')
-  async scheduleTistoryPosting() {
+  async scheduleTistoryHealthPosting() {
     await this.delayScheduling();
-    await this.handleTistoryPosting();
-  }
-
-  async getPhotosFromPexels() {
-    const photos = await this.pexelsService.getPexelsPhotos('duck');
-    return photos;
-  }
-
-  async getItemsFromYoutube() {
-    const items = await this.youtubeService.getYoutubeItems(
-      '환절기 감기 예방법',
-      5,
-    );
-    return items;
+    await this.handleTistoryPosting('health');
   }
 
   async connectToTistory() {
     const { browser, page } = await this.puppeteerService.getBrowser();
+
+    page.on('dialog', async (dialog) => {
+      await this.utilsService.delayRandomTime('quick');
+      await dialog.dismiss();
+    });
+
     await Promise.all([
       page.waitForNavigation({ waitUntil: 'load' }),
       page.goto('https://www.google.com'),
@@ -350,12 +377,12 @@ export class TistoryService {
     await page.type(
       '#loginId--1',
       this.configService.get<string>('TISTORY_EMAIL'),
-      { delay: Math.random() * (300 - 100) + 100 },
+      { delay: Math.floor(Math.random() * 100) + 50 },
     );
     await page.type(
       '#password--2',
       this.configService.get<string>('TISTORY_PASS'),
-      { delay: Math.random() * (300 - 100) + 100 },
+      { delay: Math.floor(Math.random() * 100) + 50 },
     );
 
     // 접속 클릭
@@ -377,14 +404,23 @@ export class TistoryService {
 
     // html 글쓰기 모드로 변환
     await this.utilsService.delayRandomTime('slow');
-    await page.keyboard.press('Escape');
-    await this.utilsService.delayRandomTime('quick');
     await page.click('#editor-mode-layer-btn-open');
     await this.utilsService.delayRandomTime('quick');
-    const menus = await page.$$('#mceu_31-body');
-    console.log(menus);
-    await menus[2].click();
-    await page.keyboard.press('Enter');
+    await page.click('#editor-mode-html-text');
+
+    // 카테고리 변경
+    await this.utilsService.delayRandomTime('slow');
+    await page.click('#category-btn');
+    await this.utilsService.delayRandomTime('quick');
+    await page.click('#category-list .mce-text');
+
+    // 발행
+    await this.utilsService.delayRandomTime('slow');
+    await page.click('#publish-layer-btn');
+    await this.utilsService.delayRandomTime('quick');
+    await page.click('#open20');
+    await this.utilsService.delayRandomTime('quick');
+    await page.click('#publish-btn');
 
     browser.close();
   }

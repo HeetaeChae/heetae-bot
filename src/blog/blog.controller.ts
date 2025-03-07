@@ -8,7 +8,7 @@ export class BlogController {
 
   @Get('test')
   async runTest() {
-    return this.tistoryService.connectToTistory();
+    return this.tistoryService.handleTistoryPosting('health');
   }
 
   @Get('keyword')
@@ -26,6 +26,6 @@ export class BlogController {
 
   @Get('tistory')
   async handleTistoryPost() {
-    return this.tistoryService.handleTistoryPosting();
+    return this.tistoryService.handleTistoryPosting('health');
   }
 }
