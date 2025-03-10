@@ -8,7 +8,7 @@ export class BlogController {
 
   @Get('test')
   async runTest() {
-    return this.tistoryService.handleTistoryPosting('health');
+    return this.tistoryService.getContentListFromWrtn('');
   }
 
   @Get('keyword')

@@ -14,7 +14,6 @@ import { PexelsService } from 'src/common/pexels.service';
 import { YouTubeService } from 'src/common/yotube.service';
 import { blogPrompts } from 'src/prompts/blog-prompts';
 
-// Node.js 환경에서 crypto 모듈 설정
 import * as crypto from 'crypto';
 globalThis.crypto = crypto as Crypto;
 
@@ -134,11 +133,10 @@ export class TistoryService {
     }
   }
 
-  async getContentListFromWrtn(
-    keyword: string,
-  ): Promise<{ type: string; content: string }[]> {
+  async getContentListFromWrtn(keyword: string): Promise<void> {
     try {
       const { browser, page } = await this.puppeteerService.getBrowser();
+
       await Promise.all([
         page.waitForNavigation({ waitUntil: 'load' }),
         page.goto('https://wrtn.ai'),
@@ -152,43 +150,47 @@ export class TistoryService {
       await this.utilsService.delayRandomTime('quick');
       await page.type(
         '.css-156cis4',
-        blogPrompts.wrtn(keyword).replace(/\n/g, ' '),
+        blogPrompts.wrtn('숙면의 중요성').replace(/\n/g, ' '),
         { delay: 30 },
       );
       await page.keyboard.press('Enter');
 
       // html 긁기
-      await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 1)); // 1분 대기
-      const parentEl = await page.$('#chat-room-message-1 > .css-1j17jy3');
+      await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 0.5)); // 1분 대기
 
-      /*
-      const contentList = await parentEl.evaluate((el) => {
-        return Array.from(el.children).map((child) => ({
-          type: child.tagName.toLowerCase(),
-          content: (child as HTMLElement).innerText.trim(),
-        }));
-      }, parentEl);
-      */
+      const domTree = await page.evaluate((selector) => {
+        function serializeElement(element: Element) {
+          console.log(element);
+          if (!element) return null; // 요소가 없을 경우 예외 처리
 
-      const domTree = await page.evaluate(() => {
-        function serializeElement(element) {
+          // 텍스트 노드만 있는 경우 처리
+          if (element.nodeType === Node.TEXT_NODE) {
+            const trimmedText = element.nodeValue.trim();
+            return trimmedText ? { type: 'text', content: trimmedText } : null;
+          }
+
+          // 요소의 태그명 가져오기
           const tagName = element.tagName.toLowerCase();
 
+          // 자식 요소들 객체화 (재귀 호출)
           const children = Array.from(element.childNodes)
             .map(serializeElement)
-            .filter((child) => child !== null);
+            .filter((child) => child !== null); // 빈 값 제거
+
+          // 최종 구조 반환
           return {
             type: tagName,
             content:
               children.length > 0 ? children : element.textContent.trim(),
           };
         }
-        return serializeElement(parentEl);
-      });
 
-      await browser.close();
+        // 🔥 특정 요소 내부만 분석
+        const targetElement = document.querySelector(selector);
+        return serializeElement(targetElement);
+      }, '#chat-room-message-1 > .css-1j17jy3'); // 🔥 여기에 특정 요소의 선택자 입력
+
       console.log(domTree);
-      return domTree;
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException({
@@ -341,87 +343,5 @@ export class TistoryService {
   async scheduleTistoryHealthPosting() {
     await this.delayScheduling();
     await this.handleTistoryPosting('health');
-  }
-
-  async connectToTistory() {
-    const { browser, page } = await this.puppeteerService.getBrowser();
-
-    page.on('dialog', async (dialog) => {
-      await this.utilsService.delayRandomTime('quick');
-      await dialog.dismiss();
-    });
-
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'load' }),
-      page.goto('https://www.google.com'),
-    ]);
-
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'load' }),
-      page.goto('https://www.tistory.com'),
-    ]);
-
-    // 로그인 클릭
-    await this.utilsService.delayRandomTime('slow');
-    await page.click('.my_tistory.box_mylogin .txt_login');
-
-    // 모달 로그인 클릭
-    await this.utilsService.delayRandomTime('slow');
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'load' }),
-      page.click('.login_tistory .txt_login'),
-    ]);
-
-    // 계정 입력
-    await this.utilsService.delayRandomTime('slow');
-    await page.type(
-      '#loginId--1',
-      this.configService.get<string>('TISTORY_EMAIL'),
-      { delay: Math.floor(Math.random() * 100) + 50 },
-    );
-    await page.type(
-      '#password--2',
-      this.configService.get<string>('TISTORY_PASS'),
-      { delay: Math.floor(Math.random() * 100) + 50 },
-    );
-
-    // 접속 클릭
-    await this.utilsService.delayRandomTime('quick');
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'load' }),
-      page.click('.submit'),
-    ]);
-
-    // 글쓰기 페이지로
-    await this.utilsService.delayRandomTime('slow');
-    const hrefs = await page.$$eval('.link_tab', (els) =>
-      els.map((el) => el.getAttribute('href')).filter((href) => href !== '#'),
-    );
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'load' }),
-      page.goto(hrefs[0]),
-    ]);
-
-    // html 글쓰기 모드로 변환
-    await this.utilsService.delayRandomTime('slow');
-    await page.click('#editor-mode-layer-btn-open');
-    await this.utilsService.delayRandomTime('quick');
-    await page.click('#editor-mode-html-text');
-
-    // 카테고리 변경
-    await this.utilsService.delayRandomTime('slow');
-    await page.click('#category-btn');
-    await this.utilsService.delayRandomTime('quick');
-    await page.click('#category-list .mce-text');
-
-    // 발행
-    await this.utilsService.delayRandomTime('slow');
-    await page.click('#publish-layer-btn');
-    await this.utilsService.delayRandomTime('quick');
-    await page.click('#open20');
-    await this.utilsService.delayRandomTime('quick');
-    await page.click('#publish-btn');
-
-    browser.close();
   }
 }
