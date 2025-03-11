@@ -3,6 +3,12 @@ import { blogPrompts } from 'src/prompts/blog-prompts';
 import { PuppeteerService } from './puppeteer.service';
 import { UtilsService } from './utils.service';
 
+export interface ElementTree {
+  tag: string;
+  text: string | null;
+  elementTree: ElementTree[] | null;
+}
+
 @Injectable()
 export class WrtnService {
   constructor(
@@ -10,8 +16,8 @@ export class WrtnService {
     private utilsService: UtilsService,
   ) {}
 
-  async createContentsList(keyword: string): Promise<void> {
-    const prompt = blogPrompts.wrtn('숙면의 중요성').replace(/\n/g, ' ');
+  async getElementTree(keyword: string): Promise<ElementTree> {
+    const prompt = blogPrompts.wrtn(keyword).replace(/\n/g, ' ');
 
     try {
       const { browser, page } = await this.puppeteerService.getBrowser();
@@ -22,52 +28,47 @@ export class WrtnService {
       ]);
 
       // 모달 닫기
-      await this.utilsService.delayRandomTime('slow');
-      await page.click('.css-12wvnvt', { delay: 1000 });
+      await this.utilsService.delayRandomTime('quick');
+      await page.click('.css-12wvnvt');
 
       // 프롬프트 타이핑
       await this.utilsService.delayRandomTime('quick');
-      await page.type('.css-156cis4', prompt, { delay: 30 });
+      await page.type('.css-156cis4', prompt);
       await page.keyboard.press('Enter');
 
-      // html 긁기
-      await new Promise((resolve) => setTimeout(resolve, 1000 * 60 * 0.5)); // 1분 대기
+      // 기다리기
+      await page.waitForSelector('.css-1rt91ct');
 
-      const domTree = await page.evaluate((selector) => {
+      // 답변 내용 부분 크롤링해서 콘텐츠 리스트로 만들기
+      const elementTree = await page.evaluate((selector: string) => {
         function serializeElement(element: Element) {
-          console.log(element);
-          if (!element) return null; // 요소가 없을 경우 예외 처리
+          let tag = element.tagName.toLowerCase();
+          const text = Array.from(element.childNodes)
+            .find((childNode) => childNode.nodeType === 3)
+            ?.textContent.trim();
 
-          // 텍스트 노드만 있는 경우 처리
-          if (element.nodeType === Node.TEXT_NODE) {
-            const trimmedText = element.nodeValue.trim();
-            return trimmedText ? { type: 'text', content: trimmedText } : null;
+          const children = element.children;
+
+          const childrenTree = [];
+
+          for (const child of children) {
+            const serialized = serializeElement(child);
+            childrenTree.push(serialized);
           }
 
-          // 요소의 태그명 가져오기
-          const tagName = element.tagName.toLowerCase();
-
-          // 자식 요소들 객체화 (재귀 호출)
-          const children = Array.from(element.childNodes)
-            .map(serializeElement)
-            .filter((child) => child !== null); // 빈 값 제거
-
-          // 최종 구조 반환
           return {
-            type: tagName,
-            content:
-              children.length > 0 ? children : element.textContent.trim(),
+            tag,
+            text,
+            elementTree: childrenTree.length > 0 ? childrenTree : null,
           };
         }
 
-        // 🔥 특정 요소 내부만 분석
-        const targetElement = document.querySelector(selector);
-        return serializeElement(targetElement);
-      }, '#chat-room-message-1 > .css-1j17jy3'); // 🔥 여기에 특정 요소의 선택자 입력
-
-      console.log(domTree);
+        const element = document.querySelector(selector);
+        return serializeElement(element);
+      }, '#chat-room-message-1 > .css-1j17jy3');
+      await browser.close();
+      return elementTree;
     } catch (error) {
-      console.error(error);
       throw new InternalServerErrorException({
         statusCode: 500,
         message: `wrtn,puppeteer: puppeteer로 뤼튼 ai 작동중 오류. ${error.message}`,

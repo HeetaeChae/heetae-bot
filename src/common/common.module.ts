@@ -6,6 +6,8 @@ import { GptService } from './gpt.service';
 import { SupabaseService } from './supabase.service';
 import { PexelsService } from './pexels.service';
 import { YouTubeService } from './yotube.service';
+import { WrtnService } from './wrtn.service';
+import { TistoryService } from './tistory.service';
 
 @Module({
   imports: [],
@@ -17,6 +19,8 @@ import { YouTubeService } from './yotube.service';
     SupabaseService,
     PexelsService,
     YouTubeService,
+    WrtnService,
+    TistoryService,
   ],
   exports: [
     PuppeteerService,
@@ -26,6 +30,8 @@ import { YouTubeService } from './yotube.service';
     SupabaseService,
     PexelsService,
     YouTubeService,
+    WrtnService,
+    TistoryService,
   ],
 })
 export class CommonModule {}

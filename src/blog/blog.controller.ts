@@ -7,9 +7,7 @@ export class BlogController {
   constructor(private tistoryService: TistoryService) {}
 
   @Get('test')
-  async runTest() {
-    return this.tistoryService.getContentListFromWrtn('');
-  }
+  async runTest() {}
 
   @Get('keyword')
   async createKeywords(
