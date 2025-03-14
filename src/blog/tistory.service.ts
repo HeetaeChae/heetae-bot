@@ -16,15 +16,15 @@ import { WrtnService } from 'src/common/wrtn.service';
 import { htmlStyleMap } from 'src/contants/styles';
 
 import * as crypto from 'crypto';
+import { keywordCreating } from 'src/contants/prompts';
 globalThis.crypto = crypto as Crypto;
-
-type Category = 'health' | 'pet' | 'business';
 
 interface ElementTree {
   tag: string;
   text: string | null;
   elementTree: ElementTree[];
 }
+type Category = 'health' | 'pet' | 'business';
 
 @Injectable()
 export class TistoryService {
@@ -129,15 +129,19 @@ export class TistoryService {
     primaryKeyword: string,
   ): Promise<{ id: number; postingUrl: string } | null> {
     try {
-      const { data, error } = await this.supabaseService
+      const { data } = await this.supabaseService
         .getClient()
         .from('blog_keywords')
         .select('*')
-        .neq('posted_at', null)
+        .not('posted_at', 'is', null)
         .eq('primaryKeyword', primaryKeyword)
-        .eq('related_posting_url', null);
+        .is('related_posting_url', null);
 
-      if (!data.length) null;
+      console.log(data);
+
+      if (!data) {
+        return null;
+      }
 
       const randomIdx = Math.floor(Math.random() * data.length);
       const { id, posting_url } = data[randomIdx];
@@ -197,18 +201,81 @@ export class TistoryService {
     }
   }
 
-  async handleHTML(elementTree: ElementTree) {
-    function renderElementTreeToHTML(elementTree: ElementTree) {
-      const tag = elementTree.tag;
-      const text = elementTree.text || '';
-      const children = elementTree.elementTree
-        ? elementTree.elementTree.map(renderElementTreeToHTML).join('')
-        : '';
+  async createPostingContents(
+    elementTree: any,
+    longTailKeyword: string,
+    relatingPostingUrl: string | null,
+  ) {
+    const getKeywordFromGpt = async (prompt: string) => {
+      // 여기 문제. temperate 관련.
+      return await this.gptService.generateGptResponse(prompt, 0.7);
+    };
+    const getImgUrlTag = async (text: string) => {
+      const imgKeyword = await getKeywordFromGpt(keywordCreating(text));
+      const photo = await this.pexelsService.getPexelsPhotos(imgKeyword);
+      console.log('photo', photo);
+      return `<img src="${photo?.src?.original}" alt="${photo?.alt}" />`;
+    };
+    const getYotubeLinkTag = async (longTailKeyword: string) => {
+      const youtubeItems = await this.youtubeService.getYoutubeItems(
+        longTailKeyword,
+        1,
+      );
+      console.log('youtubeItems', youtubeItems);
+      return `<a src="${youtubeItems[0]?.link || ''}" />`;
+    };
+    const getRelatingPostingUrlTag = (relatingPostingUrl: string | null) => {
+      return relatingPostingUrl ? `<a src="${relatingPostingUrl}" />` : '';
+    };
+    const getHashTags = async (longTailKeyword: string): Promise<string> => {
+      return '#테스트#해시태그#임시#하하';
+    };
 
-      return `<${tag}>${text}${children}<${tag}>`;
-    }
+    /*
+          const tag = wrtnElement.tagName.toLowerCase();
+          let text =
+            Array.from(wrtnElement.childNodes)
+              .find((childNode) => childNode.nodeType === 3)
+              ?.textContent.trim() || null;
+          const elements = [];
 
-    return renderElementTreeToHTML(elementTree);
+          const children = wrtnElement.children;
+
+          for (const child of children) {
+            const serialized = serializeWrtnElement(child);
+            if (serialized.tag === 'strong') {
+              text = serialized.text + text;
+              continue;
+            }
+            elements.push(serialized);
+          }
+
+          return { tag, text, elements: elements.length > 0 ? elements : null };
+    */
+    const renderElements = async (elements: any) => {
+      let HTML = '';
+
+      for (const element of elements) {
+        const { tag, text } = element;
+        if (tag === 'h3') {
+          // 이미지 추가
+          HTML += await getImgUrlTag(text);
+        }
+        HTML += `<${tag}>`;
+        HTML += text || '';
+        HTML += element.elements ? await renderElements(element.elements) : '';
+        HTML += `</${tag}>`;
+      }
+
+      return HTML;
+    };
+    let HTMLContent = await renderElements(elementTree.elements);
+    // 유튜브 링크 추가
+    HTMLContent += await getYotubeLinkTag(longTailKeyword);
+    // 관련 링크 추가
+    HTMLContent += getRelatingPostingUrlTag(relatingPostingUrl);
+
+    console.log(HTMLContent);
   }
 
   async handleTistoryPosting(category: Category) {
@@ -219,14 +286,19 @@ export class TistoryService {
     const elementTree = await this.wrtnService.getElementTree(
       keywordData.longTailKeyword,
     );
-    const html = await this.handleHTML(elementTree);
-    console.log(html);
+    console.log(keywordData.longTailKeyword, elementTree);
+    // 첨부할 데이터 가져오기
+    const relatingData = await this.getRelatingData(keywordData.primaryKeyword);
+    await this.createPostingContents(
+      elementTree,
+      keywordData.longTailKeyword,
+      relatingData?.postingUrl || null,
+    );
+
     /*
     // 포스팅할 컨텐츠 생성
     // 포스팅 업로드
     const postingUrl = await this.uploadTistoryPosting();
-    // 첨부할 데이터 가져오기
-    const relatingData = await this.getRelatingData(keywordData.primaryKeyword);
     // 첨부된 데이터 업데이트
     await this.updateRelatingData(relatingData.id, postingUrl);
     // 키워드 데이터 업데이트

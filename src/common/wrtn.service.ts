@@ -3,12 +3,6 @@ import { blogPrompts } from 'src/prompts/blog-prompts';
 import { PuppeteerService } from './puppeteer.service';
 import { UtilsService } from './utils.service';
 
-export interface ElementTree {
-  tag: string;
-  text: string | null;
-  elementTree: ElementTree[] | null;
-}
-
 @Injectable()
 export class WrtnService {
   constructor(
@@ -16,7 +10,7 @@ export class WrtnService {
     private utilsService: UtilsService,
   ) {}
 
-  async getElementTree(keyword: string): Promise<ElementTree> {
+  async getElementTree(keyword: string): Promise<any> {
     const prompt = blogPrompts.wrtn(keyword).replace(/\n/g, ' ');
 
     try {
@@ -39,35 +33,35 @@ export class WrtnService {
       // 기다리기
       await page.waitForSelector('.css-1rt91ct');
 
-      // 답변 내용 부분 크롤링해서 콘텐츠 리스트로 만들기
-      const elementTree = await page.evaluate((selector: string) => {
-        function serializeElement(element: Element) {
-          let tag = element.tagName.toLowerCase();
-          const text = Array.from(element.childNodes)
-            .find((childNode) => childNode.nodeType === 3)
-            ?.textContent.trim();
+      // 답변 내용 부분 크롤링해서 elementTree 만들기
+      const result = await page.evaluate((selector: string) => {
+        function serializeWrtnElement(wrtnElement: Element) {
+          const tag = wrtnElement.tagName.toLowerCase();
+          let text =
+            Array.from(wrtnElement.childNodes)
+              .find((childNode) => childNode.nodeType === 3)
+              ?.textContent.trim() || null;
+          const elements = [];
 
-          const children = element.children;
-
-          const childrenTree = [];
+          const children = wrtnElement.children;
 
           for (const child of children) {
-            const serialized = serializeElement(child);
-            childrenTree.push(serialized);
+            const serialized = serializeWrtnElement(child);
+            if (serialized.tag === 'strong') {
+              text = serialized.text + text;
+              continue;
+            }
+            elements.push(serialized);
           }
 
-          return {
-            tag,
-            text,
-            elementTree: childrenTree.length > 0 ? childrenTree : null,
-          };
+          return { tag, text, elements: elements.length > 0 ? elements : null };
         }
 
-        const element = document.querySelector(selector);
-        return serializeElement(element);
+        const wrtnElement = document.querySelector(selector);
+        return serializeWrtnElement(wrtnElement);
       }, '#chat-room-message-1 > .css-1j17jy3');
-      await browser.close();
-      return elementTree;
+      // await browser.close();
+      return result;
     } catch (error) {
       throw new InternalServerErrorException({
         statusCode: 500,

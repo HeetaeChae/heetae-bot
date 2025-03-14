@@ -12,7 +12,18 @@ export class YouTubeService {
 
   constructor(private configService: ConfigService) {}
 
-  async getYoutubeItems(query: string, maxResults: number): Promise<string[]> {
+  async getYoutubeItems(
+    query: string,
+    maxResults: number,
+  ): Promise<
+    {
+      thumbnailUrl: string;
+      link: string;
+      title: string;
+      description: string;
+      channelTitle: string;
+    }[]
+  > {
     const youtubeApiKey = this.configService.get<string>('YOUTUBE_API_KEY');
 
     if (!youtubeApiKey) {
