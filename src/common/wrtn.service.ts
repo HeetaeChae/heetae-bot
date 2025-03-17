@@ -1,7 +1,13 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { blogPrompts } from 'src/prompts/blog-prompts';
+import { getWrtnPrompt } from 'src/contants/prompts';
 import { PuppeteerService } from './puppeteer.service';
 import { UtilsService } from './utils.service';
+
+export interface ElementTree {
+  tag: string;
+  text: string;
+  elements: ElementTree[];
+}
 
 @Injectable()
 export class WrtnService {
@@ -10,8 +16,8 @@ export class WrtnService {
     private utilsService: UtilsService,
   ) {}
 
-  async getElementTree(keyword: string): Promise<any> {
-    const prompt = blogPrompts.wrtn(keyword).replace(/\n/g, ' ');
+  async getElementTree(keyword: string): Promise<ElementTree> {
+    const prompt = getWrtnPrompt(keyword).replace(/\n/g, ' ');
 
     try {
       const { browser, page } = await this.puppeteerService.getBrowser();

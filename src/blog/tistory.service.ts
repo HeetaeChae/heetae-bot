@@ -16,7 +16,12 @@ import { WrtnService } from 'src/common/wrtn.service';
 import { htmlStyleMap } from 'src/contants/styles';
 
 import * as crypto from 'crypto';
-import { keywordCreating } from 'src/contants/prompts';
+import { getHashTagPrompt, getKeywordPrompt } from 'src/contants/prompts';
+import {
+  getIndexListTag,
+  getIndexTag,
+  getYoutubeLinkTag,
+} from 'src/contants/tags';
 globalThis.crypto = crypto as Crypto;
 
 interface ElementTree {
@@ -206,62 +211,71 @@ export class TistoryService {
     longTailKeyword: string,
     relatingPostingUrl: string | null,
   ) {
-    const getKeywordFromGpt = async (prompt: string) => {
-      // 여기 문제. temperate 관련.
-      return await this.gptService.generateGptResponse(prompt, 0.7);
-    };
-    const getImgUrlTag = async (text: string) => {
-      const imgKeyword = await getKeywordFromGpt(keywordCreating(text));
+    const getImgUrlTag = async (text: string, usedImgKeywords: string[]) => {
+      const usedImgKeyword = usedImgKeywords.join(', ');
+      const prompt = getKeywordPrompt(text, usedImgKeyword);
+      const imgKeyword = await this.gptService.generateGptResponse(prompt, 0.7);
       const photo = await this.pexelsService.getPexelsPhotos(imgKeyword);
       console.log('photo', photo);
-      return `<img src="${photo?.src?.original}" alt="${photo?.alt}" />`;
+      const imgTag = `<img src="${photo?.src?.original}" alt="${photo?.alt}" />`;
+
+      return { imgKeyword, imgTag };
     };
     const getYotubeLinkTag = async (longTailKeyword: string) => {
       const youtubeItems = await this.youtubeService.getYoutubeItems(
         longTailKeyword,
         1,
       );
-      console.log('youtubeItems', youtubeItems);
-      return `<a src="${youtubeItems[0]?.link || ''}" />`;
+      console.log('yis', youtubeItems);
+      const youtubeInfo = youtubeItems[0];
+      console.log('yi', youtubeInfo);
+      if (!youtubeInfo) {
+        return '';
+      }
+      const { channelTitle, title, description, link, thumbnailUrl } =
+        youtubeInfo;
+      const youtubeLinkTag = getYoutubeLinkTag(
+        link,
+        title,
+        description,
+        channelTitle,
+        thumbnailUrl,
+      );
+      return youtubeLinkTag;
     };
     const getRelatingPostingUrlTag = (relatingPostingUrl: string | null) => {
       return relatingPostingUrl ? `<a src="${relatingPostingUrl}" />` : '';
     };
-    const getHashTags = async (longTailKeyword: string): Promise<string> => {
-      return '#테스트#해시태그#임시#하하';
+    const getHashTags = async (longTailKeyword: string): Promise<string[]> => {
+      const prompt = getHashTagPrompt(longTailKeyword);
+      const hashtag = await this.gptService.generateGptResponse(prompt, 0.7);
+      return hashtag.split(', ');
     };
 
-    /*
-          const tag = wrtnElement.tagName.toLowerCase();
-          let text =
-            Array.from(wrtnElement.childNodes)
-              .find((childNode) => childNode.nodeType === 3)
-              ?.textContent.trim() || null;
-          const elements = [];
+    const hashTags = await getHashTags(longTailKeyword);
+    let title = '';
 
-          const children = wrtnElement.children;
-
-          for (const child of children) {
-            const serialized = serializeWrtnElement(child);
-            if (serialized.tag === 'strong') {
-              text = serialized.text + text;
-              continue;
-            }
-            elements.push(serialized);
-          }
-
-          return { tag, text, elements: elements.length > 0 ? elements : null };
-    */
-    const renderElements = async (elements: any) => {
+    const renderElements = async (elements: any): Promise<string> => {
       let HTML = '';
 
+      const usedImgKeywords = [];
       for (const element of elements) {
         const { tag, text } = element;
-        if (tag === 'h3') {
-          // 이미지 추가
-          HTML += await getImgUrlTag(text);
+        if (tag === 'h1') {
+          title = text;
+          continue;
         }
-        HTML += `<${tag}>`;
+        if (tag === 'h3') {
+          const { imgKeyword, imgTag } = await getImgUrlTag(
+            text,
+            usedImgKeywords,
+          );
+          HTML += imgTag;
+          usedImgKeywords.push(imgKeyword);
+        }
+
+        const style = htmlStyleMap[tag];
+        HTML += style ? `<${tag} style="${style}">` : `<${tag}>`;
         HTML += text || '';
         HTML += element.elements ? await renderElements(element.elements) : '';
         HTML += `</${tag}>`;
@@ -269,13 +283,18 @@ export class TistoryService {
 
       return HTML;
     };
+
     let HTMLContent = await renderElements(elementTree.elements);
-    // 유튜브 링크 추가
     HTMLContent += await getYotubeLinkTag(longTailKeyword);
-    // 관련 링크 추가
     HTMLContent += getRelatingPostingUrlTag(relatingPostingUrl);
 
-    console.log(HTMLContent);
+    console.log(title, HTMLContent, hashTags);
+
+    return {
+      title,
+      HTMLContent,
+      hashTags,
+    };
   }
 
   async handleTistoryPosting(category: Category) {
@@ -286,7 +305,6 @@ export class TistoryService {
     const elementTree = await this.wrtnService.getElementTree(
       keywordData.longTailKeyword,
     );
-    console.log(keywordData.longTailKeyword, elementTree);
     // 첨부할 데이터 가져오기
     const relatingData = await this.getRelatingData(keywordData.primaryKeyword);
     await this.createPostingContents(
@@ -294,7 +312,6 @@ export class TistoryService {
       keywordData.longTailKeyword,
       relatingData?.postingUrl || null,
     );
-
     /*
     // 포스팅할 컨텐츠 생성
     // 포스팅 업로드

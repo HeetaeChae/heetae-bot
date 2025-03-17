@@ -1,11 +1,7 @@
 export const htmlStyleMap: Record<string, string> = {
-  p: 'color: blue; font-size: 16px;',
-  h1: 'color: red; font-size: 24px; font-weight: bold;',
-  h2: 'color: green; font-size: 20px; font-weight: bold;',
-  h3: 'color: black; font-size: 18px; font-weight: bold;',
-  li: 'margin-left: 20px; color: #333;',
-  ul: 'list-style-type: disc; padding-left: 20px;',
-  table: 'border-collapse: collapse; width: 100%;',
-  th: 'border: 1px solid black; padding: 5px; background: #ddd;',
-  td: 'border: 1px solid black; padding: 5px;',
+  table:
+    'width: 100%; border-collapse: collapse; text-align: center; margin: 1em 0',
+  tr: 'padding: 10px; border-bottom: 1px solid #ddd;',
+  th: 'padding: 10px; border: 1px solid #ddd;',
+  h2: 'padding: 0.4em 1em 0.4em 0.5em; margin-top: 5em; margin-bottom: 2em; color: #000; border-left: 10px solid #009a87; border-bottom: 2px #009a87 solid; font-weight: bold;',
 };

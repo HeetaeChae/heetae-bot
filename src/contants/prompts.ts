@@ -1,6 +1,6 @@
-export const blogWriting = (keyword: string): string => `
+export const getWrtnPrompt = (keyword: string): string => `
 과제: 아래의 글 구조와 지침을 꼼꼼하게 참고하여 주어진 키워드를 주제로 SEO에 최적화된 블로그 글을 작성하라.
-글 구조: 제목 - 개요 - 본문 - 요약 - 마무리
+글 구조: 제목 - 인사 - 개요 - 본문 - 요약 - 마무리
 지침:
 1. SEO에 최적화된 글을 작성한다.
 2. SEO에 최적화된 제목을 짓는다.
@@ -14,7 +14,14 @@ export const blogWriting = (keyword: string): string => `
 키워드: “${keyword}” 
 `;
 
-export const keywordCreating = (text: string): string => `
+export const getKeywordPrompt = (text: string, usedKeyword: string): string => `
 내용: ${text}
-위의 내용에 대한 키워드를 영어 한 단어로 생성해줘.
+위의 내용에 대한 키워드를 영어 한 단어로 생성하라.
+단, ${usedKeyword}는 제외한다.
+`;
+
+export const getHashTagPrompt = (keyword: string): string => `
+키워드: ${keyword}
+위의 키워드에 대한 해시태그를 아래와 같이 ,로 나누어 5가지 생성하라.
+해시태그1, 해시태그2, 해시태그3, 해시태그4, 해시태그5
 `;
