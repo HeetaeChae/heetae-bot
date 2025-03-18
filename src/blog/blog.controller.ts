@@ -1,10 +1,10 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { stringify } from 'querystring';
-import { TistoryService } from './tistory.service';
+import { BlogService } from './blog.service';
 
 @Controller('blog')
 export class BlogController {
-  constructor(private tistoryService: TistoryService) {}
+  constructor(private blogService: BlogService) {}
 
   @Get('test')
   async runTest() {}
@@ -15,7 +15,7 @@ export class BlogController {
     @Query('primaryKeyword') primaryKeyword: string,
     @Query('longTailKeyword') longTailKeyword: string,
   ) {
-    return this.tistoryService.saveKeyword(
+    return this.blogService.saveKeyword(
       category,
       primaryKeyword,
       longTailKeyword,
@@ -24,6 +24,6 @@ export class BlogController {
 
   @Get('tistory')
   async handleTistoryPost() {
-    return this.tistoryService.handleTistoryPosting('health');
+    return this.blogService.handleTistoryPosting('health');
   }
 }

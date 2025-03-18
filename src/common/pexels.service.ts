@@ -21,13 +21,13 @@ export class PexelsService {
     this.pexelsClient = createClient(pexelsApiKey);
   }
 
-  async getPexelsPhotos(query: string) {
+  async getPexelsPhotos(query: string, count: number) {
     try {
       const response = await this.pexelsClient.photos.search({
         query,
-        per_page: 1,
+        per_page: count,
       });
-      return response?.photos[0] || null;
+      return response?.photos || null;
     } catch (error) {
       console.error(error);
       throw new InternalServerErrorException({

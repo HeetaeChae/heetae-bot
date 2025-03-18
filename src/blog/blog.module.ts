@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { CommonModule } from 'src/common/common.module';
-import { TistoryService } from './tistory.service';
+import { BlogService } from './blog.service';
 import { BlogController } from './blog.controller';
 
 @Module({
   imports: [CommonModule],
-  providers: [TistoryService],
-  exports: [TistoryService],
+  providers: [BlogService],
+  exports: [BlogService],
   controllers: [BlogController],
 })
 export class BlogModule {}

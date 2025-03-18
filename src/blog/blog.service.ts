@@ -14,25 +14,23 @@ import { PexelsService } from 'src/common/pexels.service';
 import { YouTubeService } from 'src/common/yotube.service';
 import { WrtnService } from 'src/common/wrtn.service';
 import { htmlStyleMap } from 'src/contants/styles';
+import { TistoryService } from 'src/common/tistory.service';
 
 import * as crypto from 'crypto';
 import { getHashTagPrompt, getKeywordPrompt } from 'src/contants/prompts';
 import {
+  getImgContainerTag,
+  getImgTag,
   getIndexListTag,
   getIndexTag,
   getYoutubeLinkTag,
 } from 'src/contants/tags';
 globalThis.crypto = crypto as Crypto;
 
-interface ElementTree {
-  tag: string;
-  text: string | null;
-  elementTree: ElementTree[];
-}
 type Category = 'health' | 'pet' | 'business';
 
 @Injectable()
-export class TistoryService {
+export class BlogService {
   constructor(
     private puppeteerService: PuppeteerService,
     private supabaseService: SupabaseService,
@@ -42,6 +40,7 @@ export class TistoryService {
     private youtubeService: YouTubeService,
     private configService: ConfigService,
     private wrtnService: WrtnService,
+    private tistoryService: TistoryService,
   ) {}
 
   async saveKeyword(
@@ -215,23 +214,20 @@ export class TistoryService {
       const usedImgKeyword = usedImgKeywords.join(', ');
       const prompt = getKeywordPrompt(text, usedImgKeyword);
       const imgKeyword = await this.gptService.generateGptResponse(prompt, 0.7);
-      const photo = await this.pexelsService.getPexelsPhotos(imgKeyword);
-      console.log('photo', photo);
-      const imgTag = `<img src="${photo?.src?.original}" alt="${photo?.alt}" />`;
-
-      return { imgKeyword, imgTag };
+      const photos = await this.pexelsService.getPexelsPhotos(imgKeyword, 3);
+      const imgTagList = photos.map((photo) =>
+        getImgTag(photo?.src?.medium, photo?.alt),
+      );
+      const imgTagHTML = getImgContainerTag(imgTagList.join(''));
+      return { imgKeyword, imgTag: imgTagHTML };
     };
     const getYotubeLinkTag = async (longTailKeyword: string) => {
       const youtubeItems = await this.youtubeService.getYoutubeItems(
         longTailKeyword,
         1,
       );
-      console.log('yis', youtubeItems);
       const youtubeInfo = youtubeItems[0];
-      console.log('yi', youtubeInfo);
-      if (!youtubeInfo) {
-        return '';
-      }
+      if (!youtubeInfo) '';
       const { channelTitle, title, description, link, thumbnailUrl } =
         youtubeInfo;
       const youtubeLinkTag = getYoutubeLinkTag(
@@ -251,20 +247,40 @@ export class TistoryService {
       const hashtag = await this.gptService.generateGptResponse(prompt, 0.7);
       return hashtag.split(', ');
     };
+    const getIndexTagHTML = (indexTexts: string[]) => {
+      const indexListTag = indexTexts.map((indexText, idx) =>
+        getIndexListTag(idx + 1, indexText),
+      );
+      const indexTag = getIndexTag(indexListTag.join(''));
+      return indexTag;
+    };
 
     const hashTags = await getHashTags(longTailKeyword);
     let title = '';
+    let h2Texts = [];
 
     const renderElements = async (elements: any): Promise<string> => {
       let HTML = '';
-
       const usedImgKeywords = [];
+
       for (const element of elements) {
         const { tag, text } = element;
+
         if (tag === 'h1') {
           title = text;
           continue;
         }
+
+        const styleAttr = htmlStyleMap[tag]
+          ? `style="${htmlStyleMap[tag]}"`
+          : '';
+        const idAttr = tag === 'h2' ? `id="section${h2Texts.length + 1}"` : '';
+
+        HTML += `<${tag} ${styleAttr} ${idAttr}>`;
+        HTML += text || '';
+        HTML += element.elements ? await renderElements(element.elements) : '';
+        HTML += `</${tag}>`;
+
         if (tag === 'h3') {
           const { imgKeyword, imgTag } = await getImgUrlTag(
             text,
@@ -274,17 +290,19 @@ export class TistoryService {
           usedImgKeywords.push(imgKeyword);
         }
 
-        const style = htmlStyleMap[tag];
-        HTML += style ? `<${tag} style="${style}">` : `<${tag}>`;
-        HTML += text || '';
-        HTML += element.elements ? await renderElements(element.elements) : '';
-        HTML += `</${tag}>`;
+        if (tag === 'h2') {
+          console.log('if', 'tag: ', tag, 'text: ', text);
+          h2Texts.push(text);
+        }
       }
 
       return HTML;
     };
 
     let HTMLContent = await renderElements(elementTree.elements);
+    const indexTagHTML = getIndexTagHTML(h2Texts);
+    HTMLContent = indexTagHTML + HTMLContent;
+
     HTMLContent += await getYotubeLinkTag(longTailKeyword);
     HTMLContent += getRelatingPostingUrlTag(relatingPostingUrl);
 
@@ -307,15 +325,21 @@ export class TistoryService {
     );
     // 첨부할 데이터 가져오기
     const relatingData = await this.getRelatingData(keywordData.primaryKeyword);
-    await this.createPostingContents(
+    const postingContents = await this.createPostingContents(
       elementTree,
       keywordData.longTailKeyword,
       relatingData?.postingUrl || null,
     );
-    /*
     // 포스팅할 컨텐츠 생성
+    const { title, HTMLContent, hashTags } = postingContents;
     // 포스팅 업로드
-    const postingUrl = await this.uploadTistoryPosting();
+    const postingUrl = await this.tistoryService.uploadPosting(
+      title,
+      HTMLContent,
+      hashTags,
+    );
+
+    /*
     // 첨부된 데이터 업데이트
     await this.updateRelatingData(relatingData.id, postingUrl);
     // 키워드 데이터 업데이트

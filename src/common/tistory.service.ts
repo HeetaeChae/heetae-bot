@@ -28,7 +28,7 @@ export class TistoryService {
     this.tistoryPass = tistoryPass;
   }
 
-  async uploadPosting() {
+  async uploadPosting(title: string, HTMLContent: string, hashtags: string[]) {
     try {
       const { browser, page } = await this.puppeteerService.getBrowser();
 
@@ -46,19 +46,12 @@ export class TistoryService {
 
       await Promise.all([
         page.waitForNavigation({ waitUntil: 'load' }),
-        page.goto('https://www.tistory.com'),
+        page.goto('https://oct94.tistory.com/manage/newpost'),
       ]);
 
       // 로그인 클릭
       await this.utilsService.delayRandomTime('slow');
-      await page.click('.my_tistory.box_mylogin .txt_login');
-
-      // 모달 로그인 클릭
-      await this.utilsService.delayRandomTime('slow');
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load' }),
-        page.click('.login_tistory .txt_login'),
-      ]);
+      await page.click('.txt_login');
 
       // 계정 입력
       await this.utilsService.delayRandomTime('slow');
@@ -76,21 +69,29 @@ export class TistoryService {
         page.click('.submit'),
       ]);
 
-      // 글쓰기 페이지로 이동
-      await this.utilsService.delayRandomTime('slow');
-      const hrefs = await page.$$eval('.link_tab', (els) =>
-        els.map((el) => el.getAttribute('href')).filter((href) => href !== '#'),
-      );
-      await Promise.all([
-        page.waitForNavigation({ waitUntil: 'load' }),
-        page.goto(hrefs[0]),
-      ]);
+      // ------------------------------------------------------
 
       // html 글쓰기 모드로 변환
       await this.utilsService.delayRandomTime('slow');
       await page.click('#editor-mode-layer-btn-open');
       await this.utilsService.delayRandomTime('quick');
       await page.click('#editor-mode-html-text');
+
+      // 제목 입력
+      await this.utilsService.delayRandomTime('quick');
+      await page.type('.textarea_tit', title, { delay: this.delay });
+
+      // HTML 내용 입력
+      await this.utilsService.delayRandomTime('quick');
+      await page.click('.CodeMirror-code .CodeMirror-line');
+      await page.keyboard.type(HTMLContent, { delay: this.delay });
+
+      // 해시태그 입력
+      await this.utilsService.delayRandomTime('quick');
+      for (const hashTag of hashtags) {
+        await page.type('.tf_g', hashTag, { delay: this.delay });
+        await page.keyboard.press('Enter');
+      }
 
       /*
       // 카테고리 변경
@@ -101,10 +102,16 @@ export class TistoryService {
       */
 
       // 발행
-      await this.utilsService.delayRandomTime('slow');
+      await this.utilsService.delayRandomTime('quick');
       await page.click('#publish-layer-btn');
       await this.utilsService.delayRandomTime('quick');
       await page.click('#open20');
+      await this.utilsService.delayRandomTime('quick');
+
+      // ****************** 여기서 부터
+      await page.click('#home_subject button');
+      await this.utilsService.delayRandomTime('quick');
+      await page.locator('::-p-text(건강)').click();
       await this.utilsService.delayRandomTime('quick');
       await page.click('#publish-btn');
 
