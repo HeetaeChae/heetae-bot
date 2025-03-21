@@ -33,7 +33,7 @@ export class TripdotcomHotelTop3Service {
       root,
       'screenshot',
       'tripdotcom',
-      this.dateService.getTodayDate(),
+      this.dateService.getToday(),
     );
     if (!fs.existsSync(this.savePath)) {
       fs.mkdirSync(this.savePath, { recursive: true });

@@ -1,15 +1,8 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import * as dayjs from 'dayjs';
-import { PuppeteerService } from 'src/common/puppeteer.service';
 import { SupabaseService } from 'src/common/supabase.service';
 import { GptService } from 'src/common/gpt.service';
-import { UtilsService } from 'src/common/utils.service';
 import { PexelsService } from 'src/common/pexels.service';
 import { YouTubeService } from 'src/common/yotube.service';
 import { WrtnService } from 'src/common/wrtn.service';
@@ -17,7 +10,10 @@ import { htmlStyleMap } from 'src/contants/styles';
 import { TistoryService } from 'src/common/tistory.service';
 
 import * as crypto from 'crypto';
-import { getHashTagPrompt, getKeywordPrompt } from 'src/contants/prompts';
+import {
+  getPromptForHashtags,
+  getPromptForImgKeyword,
+} from 'src/contants/prompts';
 import {
   getImgContainerTag,
   getImgTag,
@@ -25,6 +21,8 @@ import {
   getIndexTag,
   getYoutubeLinkTag,
 } from 'src/contants/tags';
+import { DateService } from 'src/common/date.service';
+
 globalThis.crypto = crypto as Crypto;
 
 type Category = 'health' | 'pet' | 'business';
@@ -32,15 +30,13 @@ type Category = 'health' | 'pet' | 'business';
 @Injectable()
 export class BlogService {
   constructor(
-    private puppeteerService: PuppeteerService,
     private supabaseService: SupabaseService,
     private gptService: GptService,
-    private utilsService: UtilsService,
     private pexelsService: PexelsService,
     private youtubeService: YouTubeService,
-    private configService: ConfigService,
     private wrtnService: WrtnService,
     private tistoryService: TistoryService,
+    private dateService: DateService,
   ) {}
 
   async saveKeyword(
@@ -64,145 +60,173 @@ export class BlogService {
 
       return { status: 200, message };
     } catch (error) {
-      throw new InternalServerErrorException(
-        `supabse: blog_keywords 데이터 생성 오류.\n${error.message}`,
-      );
+      throw new Error();
     }
   }
 
-  async getLastPrimaryKeyword(category: Category): Promise<string | null> {
-    try {
-      const { data } = await this.supabaseService
-        .getClient()
-        .from('blog_keywords')
-        .select('primary_keyword')
-        .eq('category', category)
-        .order('posted_at', { ascending: false })
-        .limit(1);
+  // [SUPABSE] 마지막 키워드 데이터 가져오기
+  async getLastKeywordData(
+    category: Category,
+  ): Promise<{ primary: string | null }> {
+    const { data, error } = await this.supabaseService
+      .getClient()
+      .from('blog_keywords')
+      .select('primary_keyword')
+      .eq('category', category)
+      .order('posted_at', { ascending: false })
+      .limit(1)
+      .single();
 
-      return data[0]?.primary_keyword || null;
-    } catch (error) {
-      throw new Error(
-        `supabase: 마지막 primary_keyword 가져오기 오류.\n${error.message}`,
-      );
+    if (error) {
+      throw new Error();
     }
+
+    return { primary: (data?.primary_keyword as string) ?? null };
   }
 
+  // [SUPABSE] 키워드 데이터 가져오기
   async getKeywordData(
     category: string,
     lastPrimaryKeyword: string | null,
   ): Promise<{
     id: number;
-    primaryKeyword: string;
-    longTailKeyword: string;
+    primary: string;
+    longTail: string;
   }> {
-    try {
-      const { data } = await this.supabaseService
-        .getClient()
-        .from('blog_keywords')
-        .select('*')
-        .neq('primary_keyword', lastPrimaryKeyword)
-        .eq('category', category)
-        .is('posted_at', null);
+    const { data, error } = await this.supabaseService
+      .getClient()
+      .from('blog_keywords')
+      .select('*')
+      .neq('primary_keyword', lastPrimaryKeyword)
+      .eq('category', category)
+      .is('posted_at', null)
+      .limit(1)
+      .single();
 
-      if (!data.length) {
-        throw new NotFoundException({
-          statusCode: 404,
-          message: 'supabase: keyword data 데이터 없음.',
-        });
-      }
-
-      const randomIdx = Math.floor(Math.random() * data.length);
-      const {
-        id,
-        primary_keyword: primaryKeyword,
-        long_tail_keyword: longTailKeyword,
-      } = data[randomIdx];
-
-      return { id, primaryKeyword, longTailKeyword };
-    } catch (error) {
-      if (error instanceof NotFoundException) throw error;
-      throw new InternalServerErrorException({
-        statusCode: 500,
-        message: `supabase: keyword data 가져오기 오류.\n${error.message}`,
-      });
+    if (!data) {
+      throw new Error();
     }
+    if (error) {
+      throw new Error();
+    }
+
+    const { id, primary_keyword: primary, long_tail_keyword: longTail } = data;
+    return { id, primary, longTail };
   }
 
+  // [SUPABASE] 첨부할 데이터 가져오기
   async getRelatingData(
     primaryKeyword: string,
-  ): Promise<{ id: number; postingUrl: string } | null> {
-    try {
-      const { data } = await this.supabaseService
-        .getClient()
-        .from('blog_keywords')
-        .select('*')
-        .not('posted_at', 'is', null)
-        .eq('primaryKeyword', primaryKeyword)
-        .is('related_posting_url', null);
+  ): Promise<{ id: number; postingUrl: string }> {
+    const { data, error } = await this.supabaseService
+      .getClient()
+      .from('blog_keywords')
+      .select('*')
+      .not('posted_at', 'is', null)
+      .eq('primaryKeyword', primaryKeyword)
+      .is('related_posting_url', null)
+      .limit(1)
+      .single();
 
-      console.log(data);
-
-      if (!data) {
-        return null;
-      }
-
-      const randomIdx = Math.floor(Math.random() * data.length);
-      const { id, posting_url } = data[randomIdx];
-
-      return {
-        id,
-        postingUrl: posting_url,
-      };
-    } catch (error) {
-      throw new InternalServerErrorException({
-        statusCode: 500,
-        message: `supabase: keyword data 가져오기 오류.\n${error.message}`,
-      });
+    if (error) {
+      throw new Error();
     }
+
+    return { id: data?.id ?? null, postingUrl: data?.posting_url ?? null };
   }
 
+  // [SUPABASE] 첨부 데이터 업데이트
   async updateRelatingData(
     relatingId: number,
     postingUrl: string,
   ): Promise<void> {
-    try {
-      await this.supabaseService
-        .getClient()
-        .from('blog_keywords')
-        .update({ related_posting_url: postingUrl })
-        .eq('id', relatingId);
-    } catch (error) {
-      throw new InternalServerErrorException({
-        statusCode: 500,
-        message: `supabse: relating 데이터 업데이트 오류.\n${error.message}`,
-      });
+    const { error } = await this.supabaseService
+      .getClient()
+      .from('blog_keywords')
+      .update({ related_posting_url: postingUrl })
+      .eq('id', relatingId);
+
+    if (error) {
+      throw new Error();
     }
   }
 
+  // [SUPABSE] 키워드 데이터 업데이트
   async updateKeywordData(
-    keywordId: number,
+    id: number,
     postingUrl: string,
     relatingPostingUrl: string,
   ): Promise<void> {
-    try {
-      const currentTime = dayjs().format('YYYY-MM-DD HH:mm:ss');
-      await this.supabaseService
-        .getClient()
-        .from('blog_keywords')
-        .update({
-          updated_at: currentTime,
-          posted_at: currentTime,
-          posting_url: postingUrl,
-          relating_posting_url: relatingPostingUrl,
-        })
-        .eq('id', keywordId);
-    } catch (error) {
-      throw new InternalServerErrorException({
-        statusCode: 500,
-        message: `supabse: keyword 데이터 업데이트 오류.\n${error.message}`,
-      });
+    const currentTime = dayjs().format('YYYY-MM-DD HH:mm:ss');
+    const { error } = await this.supabaseService
+      .getClient()
+      .from('blog_keywords')
+      .update({
+        updated_at: currentTime,
+        posted_at: currentTime,
+        posting_url: postingUrl,
+        relating_posting_url: relatingPostingUrl,
+      })
+      .eq('id', id);
+
+    if (error) {
+      throw new Error();
     }
+  }
+
+  // [PEXELS, GPT] 이미지 태그 생성하기
+  async createImgTag(text: string, usedKeywordList: string[]) {
+    const usedKeyword = usedKeywordList.join(', ') ?? '';
+    const prompt = getPromptForImgKeyword(text, usedKeyword);
+    const keyword = await this.gptService.generateGptResponse(prompt, 0.7);
+    const photos = await this.pexelsService.getPexelsPhotos(keyword, 3);
+    const imgTagList = photos.map((photo: any) =>
+      getImgTag(photo?.src?.medium, photo?.alt),
+    );
+    const tag = getImgContainerTag(imgTagList.join(''));
+    return { keyword, tag };
+  }
+
+  // [YOUTUBE] 유튜브 링크 태그 생성하기
+  async createYotubeLinkTag(keyword: string) {
+    const youtubeItems = await this.youtubeService.getYoutubeItems(keyword, 1);
+    const youtubeInfo = youtubeItems[0] ?? null;
+
+    if (!youtubeInfo) {
+      return '';
+    }
+
+    const youtubeLinkTag = getYoutubeLinkTag(
+      youtubeInfo?.link,
+      youtubeInfo?.title,
+      youtubeInfo?.description,
+      youtubeInfo?.channelTitle,
+      youtubeInfo?.thumbnailUrl,
+    );
+    return youtubeLinkTag;
+  }
+
+  //
+  async createRelatingPostingUrlTag(relatingPostingUrl: string | null) {
+    return relatingPostingUrl ? `<a src="${relatingPostingUrl}" />` : '';
+  }
+
+  // [GPT] 해시태그 리스트 생성하기
+  async createHashTagList(keyword: string): Promise<string[]> {
+    const prompt = getPromptForHashtags(keyword);
+    const hashtags = await this.gptService.generateGptResponse(prompt, 0.7);
+    const hastagList = hashtags.split(', ');
+
+    return hastagList;
+  }
+
+  // [TAG]
+  async getIndexTagHTML(indexTexts: string[]) {
+    const indexListTag = indexTexts.map((indexText, idx) =>
+      getIndexListTag(idx + 1, indexText),
+    );
+    const indexTag = getIndexTag(indexListTag.join(''));
+    return indexTag;
   }
 
   async createPostingContents(
@@ -210,52 +234,6 @@ export class BlogService {
     longTailKeyword: string,
     relatingPostingUrl: string | null,
   ) {
-    const getImgUrlTag = async (text: string, usedImgKeywords: string[]) => {
-      const usedImgKeyword = usedImgKeywords.join(', ');
-      const prompt = getKeywordPrompt(text, usedImgKeyword);
-      const imgKeyword = await this.gptService.generateGptResponse(prompt, 0.7);
-      const photos = await this.pexelsService.getPexelsPhotos(imgKeyword, 3);
-      const imgTagList = photos.map((photo) =>
-        getImgTag(photo?.src?.medium, photo?.alt),
-      );
-      const imgTagHTML = getImgContainerTag(imgTagList.join(''));
-      return { imgKeyword, imgTag: imgTagHTML };
-    };
-    const getYotubeLinkTag = async (longTailKeyword: string) => {
-      const youtubeItems = await this.youtubeService.getYoutubeItems(
-        longTailKeyword,
-        1,
-      );
-      const youtubeInfo = youtubeItems[0];
-      if (!youtubeInfo) '';
-      const { channelTitle, title, description, link, thumbnailUrl } =
-        youtubeInfo;
-      const youtubeLinkTag = getYoutubeLinkTag(
-        link,
-        title,
-        description,
-        channelTitle,
-        thumbnailUrl,
-      );
-      return youtubeLinkTag;
-    };
-    const getRelatingPostingUrlTag = (relatingPostingUrl: string | null) => {
-      return relatingPostingUrl ? `<a src="${relatingPostingUrl}" />` : '';
-    };
-    const getHashTags = async (longTailKeyword: string): Promise<string[]> => {
-      const prompt = getHashTagPrompt(longTailKeyword);
-      const hashtag = await this.gptService.generateGptResponse(prompt, 0.7);
-      return hashtag.split(', ');
-    };
-    const getIndexTagHTML = (indexTexts: string[]) => {
-      const indexListTag = indexTexts.map((indexText, idx) =>
-        getIndexListTag(idx + 1, indexText),
-      );
-      const indexTag = getIndexTag(indexListTag.join(''));
-      return indexTag;
-    };
-
-    const hashTags = await getHashTags(longTailKeyword);
     let title = '';
     let h2Texts = [];
 
@@ -282,14 +260,10 @@ export class BlogService {
         HTML += `</${tag}>`;
 
         if (tag === 'h3') {
-          const { imgKeyword, imgTag } = await getImgUrlTag(
-            text,
-            usedImgKeywords,
-          );
-          HTML += imgTag;
-          usedImgKeywords.push(imgKeyword);
+          const imgTag = await this.createImgTag(text, usedImgKeywords);
+          HTML += imgTag.tag;
+          usedImgKeywords.push(imgTag.keyword);
         }
-
         if (tag === 'h2') {
           console.log('if', 'tag: ', tag, 'text: ', text);
           h2Texts.push(text);
@@ -306,7 +280,7 @@ export class BlogService {
     HTMLContent += await getYotubeLinkTag(longTailKeyword);
     HTMLContent += getRelatingPostingUrlTag(relatingPostingUrl);
 
-    console.log(title, HTMLContent, hashTags);
+    const hashTags = await this.createHashTagList(longTailKeyword);
 
     return {
       title,
@@ -316,43 +290,79 @@ export class BlogService {
   }
 
   async handleTistoryPosting(category: Category) {
-    // 키워드 데이터 가져오기
-    const lastPrimaryKeyword = await this.getLastPrimaryKeyword(category);
-    const keywordData = await this.getKeywordData(category, lastPrimaryKeyword);
-    // element 가져오기
-    const elementTree = await this.wrtnService.getElementTree(
-      keywordData.longTailKeyword,
-    );
-    // 첨부할 데이터 가져오기
-    const relatingData = await this.getRelatingData(keywordData.primaryKeyword);
-    const postingContents = await this.createPostingContents(
-      elementTree,
-      keywordData.longTailKeyword,
-      relatingData?.postingUrl || null,
-    );
-    // 포스팅할 컨텐츠 생성
-    const { title, HTMLContent, hashTags } = postingContents;
-    // 포스팅 업로드
-    const postingUrl = await this.tistoryService.uploadPosting(
-      title,
-      HTMLContent,
-      hashTags,
-    );
+    try {
+      // [START] 티스토리 포스팅 자동화 프로세스 시작!
+      console.log(
+        '########## [START] 티스토리 포스팅 자동화 프로세스 시작: ',
+        this.dateService.getCurrentTime(),
+      );
 
-    /*
-    // 첨부된 데이터 업데이트
-    await this.updateRelatingData(relatingData.id, postingUrl);
-    // 키워드 데이터 업데이트
-    await this.updateKeywordData(
-      keywordData.id,
-      postingUrl,
-      relatingData.postingUrl,
-    );
-    */
+      // [SUPABSE] 마지막 대표 키워드 가져오기
+      const lastKeywordData = await this.getLastKeywordData(category);
+      console.log(
+        '########## [SUPABSE] 마지막 키워드 데이터: ',
+        lastKeywordData,
+      );
+
+      // [SUPABSE] 키워드 데이터
+      const keywordData = await this.getKeywordData(
+        category,
+        lastKeywordData.primary,
+      );
+      console.log('########## [SUPABSE] 키워드 데이터: ', keywordData);
+
+      // [WRTN] Element Tree 가져오기
+      const elementTree = await this.wrtnService.getElementTree(
+        keywordData.longTail,
+      );
+      console.log('########## [WRTN] Element Tree: ', elementTree);
+
+      // [SUPABSE] 링크첨부 데이터 가져오기
+      const relatingData = await this.getRelatingData(keywordData.primary);
+      console.log('########## [SUPABSE] 링크첨부 데이터: ', relatingData);
+
+      // [CONTENTS] 컨텐츠 데이터 생성
+      const contentsData = await this.createPostingContents(
+        elementTree,
+        keywordData.longTail,
+        relatingData.postingUrl,
+      );
+      console.log('########## [CONTENTS] 컨텐츠 데이터: ', contentsData);
+
+      // [TISTORY] 티스토링 포스팅 업로드
+      const postingData = await this.tistoryService.uploadPosting(
+        contentsData.title,
+        contentsData.HTMLContent,
+        contentsData.hashTags,
+      );
+      console.log('########## [TISTORY] 티스토리 포스팅 업로드: ', postingData);
+
+      // [SUPABASE] 첨부된 데이터 업데이트
+      if (relatingData.id && relatingData.postingUrl) {
+        await this.updateRelatingData(relatingData.id, relatingData.postingUrl);
+      }
+
+      /*
+      // 키워드 데이터 업데이트
+      await this.updateKeywordData(
+        keywordData.id,
+        postingUrl,
+        relatingData.postingUrl,
+      );
+      */
+
+      // [START] 티스토리 포스팅 자동화 프로세스 종료!
+      console.log(
+        '########## [START] 티스토리 포스팅 자동화 프로세스 종료: ',
+        this.dateService.getCurrentTime(),
+      );
+    } catch (err) {
+      throw err;
+    }
   }
 
   @Cron('0 8-23/3 * * *')
-  async scheduleTistoryHealthPosting() {
+  async scheduleTistoryPostingAboutHealth() {
     await this.handleTistoryPosting('health');
   }
 }

@@ -66,7 +66,8 @@ export class WrtnService {
         const wrtnElement = document.querySelector(selector);
         return serializeWrtnElement(wrtnElement);
       }, '#chat-room-message-1 > .css-1j17jy3');
-      // await browser.close();
+
+      await browser.close();
       return result;
     } catch (error) {
       throw new InternalServerErrorException({

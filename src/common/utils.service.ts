@@ -23,4 +23,8 @@ export class UtilsService {
       Math.floor(Math.random() * (time.max - time.min + 1)) + time.min;
     await new Promise((resolve) => setTimeout(resolve, randomTime));
   }
+
+  getRandomIdx(num: number) {
+    return Math.floor(Math.random() * num);
+  }
 }

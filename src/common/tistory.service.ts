@@ -32,6 +32,7 @@ export class TistoryService {
     try {
       const { browser, page } = await this.puppeteerService.getBrowser();
 
+      // alert 창 관리
       page.on('dialog', async (dialog) => {
         await this.utilsService.delayRandomTime('quick');
         const message = dialog.message();
@@ -44,16 +45,15 @@ export class TistoryService {
         }
       });
 
+      // tistory 포스팅 페이지 접속
       await Promise.all([
         page.waitForNavigation({ waitUntil: 'load' }),
         page.goto('https://oct94.tistory.com/manage/newpost'),
       ]);
 
-      // 로그인 클릭
+      // tistory 계정 로그인
       await this.utilsService.delayRandomTime('slow');
       await page.click('.txt_login');
-
-      // 계정 입력
       await this.utilsService.delayRandomTime('slow');
       await page.type('#loginId--1', this.tistoryEmail, {
         delay: this.delay,
@@ -61,32 +61,22 @@ export class TistoryService {
       await page.type('#password--2', this.tistoryPass, {
         delay: this.delay,
       });
-
-      // 접속 클릭
       await this.utilsService.delayRandomTime('quick');
       await Promise.all([
         page.waitForNavigation({ waitUntil: 'load' }),
         page.click('.submit'),
       ]);
 
-      // ------------------------------------------------------
-
-      // html 글쓰기 모드로 변환
+      // tistory 포스팅 글쓰기
       await this.utilsService.delayRandomTime('slow');
       await page.click('#editor-mode-layer-btn-open');
       await this.utilsService.delayRandomTime('quick');
       await page.click('#editor-mode-html-text');
-
-      // 제목 입력
       await this.utilsService.delayRandomTime('quick');
       await page.type('.textarea_tit', title, { delay: this.delay });
-
-      // HTML 내용 입력
       await this.utilsService.delayRandomTime('quick');
       await page.click('.CodeMirror-code .CodeMirror-line');
       await page.keyboard.type(HTMLContent, { delay: this.delay });
-
-      // 해시태그 입력
       await this.utilsService.delayRandomTime('quick');
       for (const hashTag of hashtags) {
         await page.type('.tf_g', hashTag, { delay: this.delay });
@@ -101,23 +91,23 @@ export class TistoryService {
       await page.click('#category-list .mce-text');
       */
 
-      // 발행
+      // tistory 포스팅 발행
       await this.utilsService.delayRandomTime('quick');
       await page.click('#publish-layer-btn');
       await this.utilsService.delayRandomTime('quick');
       await page.click('#open20');
       await this.utilsService.delayRandomTime('quick');
-
-      // ****************** 여기서 부터
       await page.click('#home_subject button');
       await this.utilsService.delayRandomTime('quick');
-      await page.locator('::-p-text(건강)').click();
+      const subjectBtn = await page.waitForSelector(
+        '::-p-xpath(//*[@id="home_subject"]/dd/div/div/div/div[44]/span)',
+      );
+      await subjectBtn.click();
       await this.utilsService.delayRandomTime('quick');
       await page.click('#publish-btn');
 
       browser.close();
     } catch (error) {
-      console.error(error);
       throw new InternalServerErrorException({
         statusCode: 500,
         message: `tistory: 포스팅중 오류 발생.\n${error.message}`,

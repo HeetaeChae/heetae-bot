@@ -16,8 +16,11 @@ export class DateService {
     return { dateRange, dayRange };
   }
 
-  getTodayDate(): string {
-    const todayDate = dayjs().format('YYYY-MM-DD');
-    return todayDate;
+  getToday(): string {
+    return dayjs().format('YYYY-MM-DD');
+  }
+
+  getCurrentTime(): string {
+    return dayjs().format('YYYY-MM-DD HH:mm:ss');
   }
 }

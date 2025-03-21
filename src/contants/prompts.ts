@@ -11,17 +11,20 @@ export const getWrtnPrompt = (keyword: string): string => `
 8. 본문에 3가지 이상의 소제목과 내용이 있어야 한다.
 9. 마무리 부분엔 독자에게 교훈, 전망 등을 제시한다.
 10. 글자수는 2000자 이상이여야 한다.
-키워드: “${keyword}” 
+키워드: ${keyword} 
 `;
 
-export const getKeywordPrompt = (text: string, usedKeyword: string): string => `
-내용: ${text}
+export const getPromptForImgKeyword = (
+  content: string,
+  usedKeyword: string,
+): string => `
+내용: ${content}
 위의 내용에 대한 키워드를 영어 한 단어로 생성하라.
 단, ${usedKeyword}는 제외한다.
 `;
 
-export const getHashTagPrompt = (keyword: string): string => `
+export const getPromptForHashtags = (keyword: string): string => `
 키워드: ${keyword}
-위의 키워드에 대한 해시태그를 아래와 같이 ,로 나누어 5가지 생성하라. 단, 앞에 #을 붙이지 않는다.
-해시태그1, 해시태그2, 해시태그3, 해시태그4, 해시태그5
+위의 키워드에 대한 해시태그를 아래의 예) 와 같이 ,로 나누어 5가지 생성하라. 단, 앞에 #을 붙이지 않는다.
+예) 해시태그1, 해시태그2, 해시태그3, 해시태그4, 해시태그5
 `;
