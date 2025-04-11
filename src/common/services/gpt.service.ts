@@ -19,7 +19,7 @@ export class GptService {
   async generateGptResponse(prompt: string, temperature: number) {
     try {
       const response = await this.openAi.chat.completions.create({
-        model: 'gpt-4o',
+        model: 'o3-mini',
         messages: [{ role: 'user', content: prompt }],
         temperature,
       });

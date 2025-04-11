@@ -7,12 +7,16 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 export class PuppeteerService {
   async getBrowser(): Promise<{ browser: Browser; page: Page }> {
     try {
-      // puppeteer.use(StealthPlugin())
       const stealth = StealthPlugin();
       stealth.enabledEvasions.delete('user-agent-override'); // 기본 User-Agent 설정 유지
+      // Google이 민감하게 보는 두 개의 evasion 비활성화
+      stealth.enabledEvasions.delete('iframe.contentWindow');
+      stealth.enabledEvasions.delete('media.codecs');
       puppeteer.use(stealth);
 
-      const browser = await puppeteer.launch({ headless: false });
+      const browser = await puppeteer.launch({
+        headless: false,
+      });
       const page = await browser.newPage();
 
       const requestHeaders = {

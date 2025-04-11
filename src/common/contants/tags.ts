@@ -6,7 +6,7 @@ export const getIndexTag = (indexList: string): string => `
   </ul>
 </div>`;
 
-export const getIndexListTag = (idx: number, text: string) =>
+export const getIndexLiTag = (idx: number, text: string) =>
   `<li style="margin-bottom: 8px;"><a href="#section${idx}" style="text-decoration: none; color: #007bff; font-weight: bold; transition: color 0.3s;">${text}</a></li>`;
 
 export const getImgTag = (src: string, alt: string) =>

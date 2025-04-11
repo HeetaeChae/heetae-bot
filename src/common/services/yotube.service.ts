@@ -63,7 +63,6 @@ export class YouTubeService {
 
       return items;
     } catch (error) {
-      console.error(error);
       if (error instanceof NotFoundException) {
         throw error;
       }

@@ -1,27 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import * as dayjs from 'dayjs';
-import { SupabaseService } from 'src/common/supabase.service';
-import { GptService } from 'src/common/gpt.service';
-import { PexelsService } from 'src/common/pexels.service';
-import { YouTubeService } from 'src/common/yotube.service';
-import { WrtnService } from 'src/common/wrtn.service';
-import { htmlStyleMap } from 'src/contants/styles';
-import { TistoryService } from 'src/common/tistory.service';
+import { SupabaseService } from 'src/common/services/supabase.service';
+import { GptService } from 'src/common/services/gpt.service';
+import { PexelsService } from 'src/common/services/pexels.service';
+import { YouTubeService } from 'src/common/services/yotube.service';
+import { WrtnService } from 'src/common/services/wrtn.service';
+import { htmlStyleMap } from 'src/common/contants/styles';
+import { TistoryService } from 'src/common/services/tistory.service';
 
 import * as crypto from 'crypto';
 import {
   getPromptForHashtags,
   getPromptForImgKeyword,
-} from 'src/contants/prompts';
+  getPromptForImgQuery,
+} from 'src/common/contants/prompts';
 import {
   getImgContainerTag,
   getImgTag,
-  getIndexListTag,
+  getIndexLiTag,
   getIndexTag,
   getYoutubeLinkTag,
-} from 'src/contants/tags';
-import { DateService } from 'src/common/date.service';
+} from 'src/common/contants/tags';
+import { DateService } from 'src/common/services/date.service';
+import { UtilsService } from 'src/common/services/utils.service';
+import { PuppeteerService } from 'src/common/services/puppeteer.service';
 
 globalThis.crypto = crypto as Crypto;
 
@@ -37,6 +40,8 @@ export class BlogService {
     private wrtnService: WrtnService,
     private tistoryService: TistoryService,
     private dateService: DateService,
+    private utilsService: UtilsService,
+    private puppeteerService: PuppeteerService,
   ) {}
 
   async saveKeyword(
@@ -123,16 +128,18 @@ export class BlogService {
       .from('blog_keywords')
       .select('*')
       .not('posted_at', 'is', null)
-      .eq('primaryKeyword', primaryKeyword)
+      .eq('primary_keyword', primaryKeyword)
       .is('related_posting_url', null)
-      .limit(1)
-      .single();
+      .limit(1);
 
     if (error) {
       throw new Error();
     }
 
-    return { id: data?.id ?? null, postingUrl: data?.posting_url ?? null };
+    return {
+      id: data[0]?.id ?? null,
+      postingUrl: data[0]?.posting_url ?? null,
+    };
   }
 
   // [SUPABASE] 첨부 데이터 업데이트
@@ -174,17 +181,29 @@ export class BlogService {
     }
   }
 
-  // [PEXELS, GPT] 이미지 태그 생성하기
-  async createImgTag(text: string, usedKeywordList: string[]) {
-    const usedKeyword = usedKeywordList.join(', ') ?? '';
-    const prompt = getPromptForImgKeyword(text, usedKeyword);
-    const keyword = await this.gptService.generateGptResponse(prompt, 0.7);
-    const photos = await this.pexelsService.getPexelsPhotos(keyword, 3);
+  //
+  async createRelatingPostingUrlTag(relatingPostingUrl: string | null) {
+    return relatingPostingUrl ? `<a src="${relatingPostingUrl}" />` : '';
+  }
+
+  // [GPT] 해시태그 리스트 생성하기
+  async createHashTagList(keyword: string): Promise<string[]> {
+    const prompt = getPromptForHashtags(keyword);
+    const hashtags = await this.gptService.generateGptResponse(prompt, 0.7);
+    const hastagList = hashtags.split(', ');
+
+    return hastagList;
+  }
+
+  // [PEXELS, GPT] 이미지 태그 리스트 생성하기
+  async createImgTagList(keyword: string, count: number) {
+    const prompt = getPromptForImgQuery(keyword);
+    const query = await this.gptService.generateGptResponse(prompt, 0.7);
+    const photos = await this.pexelsService.getPexelsPhotos(query, count);
     const imgTagList = photos.map((photo: any) =>
-      getImgTag(photo?.src?.medium, photo?.alt),
+      getImgTag(photo?.src?.small, photo?.alt),
     );
-    const tag = getImgContainerTag(imgTagList.join(''));
-    return { keyword, tag };
+    return imgTagList;
   }
 
   // [YOUTUBE] 유튜브 링크 태그 생성하기
@@ -206,163 +225,188 @@ export class BlogService {
     return youtubeLinkTag;
   }
 
-  //
-  async createRelatingPostingUrlTag(relatingPostingUrl: string | null) {
-    return relatingPostingUrl ? `<a src="${relatingPostingUrl}" />` : '';
-  }
+  // [CONTENTS] 포스팅 내용 생성
+  async createPostingContent(tagList: string[], keyword: string) {
+    const imgCount = tagList.filter((tag) => tag.includes('h3')).length;
+    const imgTagList = await this.createImgTagList(keyword, imgCount);
 
-  // [GPT] 해시태그 리스트 생성하기
-  async createHashTagList(keyword: string): Promise<string[]> {
-    const prompt = getPromptForHashtags(keyword);
-    const hashtags = await this.gptService.generateGptResponse(prompt, 0.7);
-    const hastagList = hashtags.split(', ');
+    let imgTagOrder = 0;
 
-    return hastagList;
-  }
+    const newTagList = [];
 
-  // [TAG]
-  async getIndexTagHTML(indexTexts: string[]) {
-    const indexListTag = indexTexts.map((indexText, idx) =>
-      getIndexListTag(idx + 1, indexText),
-    );
-    const indexTag = getIndexTag(indexListTag.join(''));
-    return indexTag;
-  }
-
-  async createPostingContents(
-    elementTree: any,
-    longTailKeyword: string,
-    relatingPostingUrl: string | null,
-  ) {
-    let title = '';
-    let h2Texts = [];
-
-    const renderElements = async (elements: any): Promise<string> => {
-      let HTML = '';
-      const usedImgKeywords = [];
-
-      for (const element of elements) {
-        const { tag, text } = element;
-
-        if (tag === 'h1') {
-          title = text;
-          continue;
-        }
-
-        const styleAttr = htmlStyleMap[tag]
-          ? `style="${htmlStyleMap[tag]}"`
-          : '';
-        const idAttr = tag === 'h2' ? `id="section${h2Texts.length + 1}"` : '';
-
-        HTML += `<${tag} ${styleAttr} ${idAttr}>`;
-        HTML += text || '';
-        HTML += element.elements ? await renderElements(element.elements) : '';
-        HTML += `</${tag}>`;
-
-        if (tag === 'h3') {
-          const imgTag = await this.createImgTag(text, usedImgKeywords);
-          HTML += imgTag.tag;
-          usedImgKeywords.push(imgTag.keyword);
-        }
-        if (tag === 'h2') {
-          console.log('if', 'tag: ', tag, 'text: ', text);
-          h2Texts.push(text);
-        }
+    for (const tag of tagList) {
+      if (tag.includes('h3')) {
+        const imgTag = imgTagList[imgTagOrder];
+        newTagList.push(imgTag);
+        imgTagOrder += 1;
       }
-
-      return HTML;
-    };
-
-    let HTMLContent = await renderElements(elementTree.elements);
-    const indexTagHTML = getIndexTagHTML(h2Texts);
-    HTMLContent = indexTagHTML + HTMLContent;
-
-    HTMLContent += await getYotubeLinkTag(longTailKeyword);
-    HTMLContent += getRelatingPostingUrlTag(relatingPostingUrl);
-
-    const hashTags = await this.createHashTagList(longTailKeyword);
-
-    return {
-      title,
-      HTMLContent,
-      hashTags,
-    };
-  }
-
-  async handleTistoryPosting(category: Category) {
-    try {
-      // [START] 티스토리 포스팅 자동화 프로세스 시작!
-      console.log(
-        '########## [START] 티스토리 포스팅 자동화 프로세스 시작: ',
-        this.dateService.getCurrentTime(),
-      );
-
-      // [SUPABSE] 마지막 대표 키워드 가져오기
-      const lastKeywordData = await this.getLastKeywordData(category);
-      console.log(
-        '########## [SUPABSE] 마지막 키워드 데이터: ',
-        lastKeywordData,
-      );
-
-      // [SUPABSE] 키워드 데이터
-      const keywordData = await this.getKeywordData(
-        category,
-        lastKeywordData.primary,
-      );
-      console.log('########## [SUPABSE] 키워드 데이터: ', keywordData);
-
-      // [WRTN] Element Tree 가져오기
-      const elementTree = await this.wrtnService.getElementTree(
-        keywordData.longTail,
-      );
-      console.log('########## [WRTN] Element Tree: ', elementTree);
-
-      // [SUPABSE] 링크첨부 데이터 가져오기
-      const relatingData = await this.getRelatingData(keywordData.primary);
-      console.log('########## [SUPABSE] 링크첨부 데이터: ', relatingData);
-
-      // [CONTENTS] 컨텐츠 데이터 생성
-      const contentsData = await this.createPostingContents(
-        elementTree,
-        keywordData.longTail,
-        relatingData.postingUrl,
-      );
-      console.log('########## [CONTENTS] 컨텐츠 데이터: ', contentsData);
-
-      // [TISTORY] 티스토링 포스팅 업로드
-      const postingData = await this.tistoryService.uploadPosting(
-        contentsData.title,
-        contentsData.HTMLContent,
-        contentsData.hashTags,
-      );
-      console.log('########## [TISTORY] 티스토리 포스팅 업로드: ', postingData);
-
-      // [SUPABASE] 첨부된 데이터 업데이트
-      if (relatingData.id && relatingData.postingUrl) {
-        await this.updateRelatingData(relatingData.id, relatingData.postingUrl);
-      }
-
-      /*
-      // 키워드 데이터 업데이트
-      await this.updateKeywordData(
-        keywordData.id,
-        postingUrl,
-        relatingData.postingUrl,
-      );
-      */
-
-      // [START] 티스토리 포스팅 자동화 프로세스 종료!
-      console.log(
-        '########## [START] 티스토리 포스팅 자동화 프로세스 종료: ',
-        this.dateService.getCurrentTime(),
-      );
-    } catch (err) {
-      throw err;
+      newTagList.push(tag);
     }
+
+    const youtubeLinkTag = await this.createYotubeLinkTag(keyword);
+    newTagList.push(youtubeLinkTag);
+
+    return newTagList.join('');
+  }
+
+  /*
+  async handleTistoryPosting(category: Category) {
+    // [START] 티스토리 포스팅 자동화 프로세스 시작!
+    console.log(
+      '##### [START] 티스토리 포스팅 자동화 프로세스 시작: ',
+      this.dateService.getCurrentTime(),
+    );
+
+    // [SUPABSE] 마지막 대표 키워드 가져오기
+    const lastKeywordData = await this.getLastKeywordData(category);
+    console.log(
+      '##### [SUPABSE] 마지막 키워드 데이터 가져오기: ',
+      lastKeywordData,
+    );
+
+    // [SUPABSE] 키워드 데이터
+    const keywordData = await this.getKeywordData(
+      category,
+      lastKeywordData.primary,
+    );
+    console.log('##### [SUPABSE] 키워드 데이터 가져오기: ', keywordData);
+
+    // [WRTN] Element Tree 가져오기
+    const elementData = await this.wrtnService.getElementData(
+      keywordData.longTail,
+    );
+    console.log('##### [WRTN] Element Tree 가져오기: ', elementData);
+
+    // [SUPABSE] 링크첨부 데이터 가져오기
+    const relatingData = await this.getRelatingData(keywordData.primary);
+    console.log('##### [SUPABSE] 링크첨부 데이터 가져오기: ', relatingData);
+
+    // [CONTENTS] 컨텐츠 데이터 생성
+    const contentsData = await this.createPostingContents(
+      elementTree,
+      keywordData.longTail,
+      relatingData.postingUrl,
+    );
+    console.log('##### [CONTENTS] 컨텐츠 데이터 생성하기: ', contentsData);
+
+    // [TISTORY] 티스토링 포스팅 업로드
+    const postingData = await this.tistoryService.uploadPosting(
+      contentsData.title,
+      contentsData.HTMLContent,
+      contentsData.hashTags,
+    );
+    console.log('##### [TISTORY] 티스토리 포스팅 업로드: ', postingData);
+
+    // [SUPABASE] 첨부된 데이터 업데이트
+    if (relatingData.id && relatingData.postingUrl) {
+      await this.updateRelatingData(relatingData.id, relatingData.postingUrl);
+    }
+
+    // 키워드 데이터 업데이트
+    await this.updateKeywordData(
+      keywordData.id,
+      postingUrl,
+      relatingData.postingUrl,
+    );
+
+    // [START] 티스토리 포스팅 자동화 프로세스 종료!
+    console.log(
+      '##### [START] 티스토리 포스팅 자동화 프로세스 종료: ',
+      this.dateService.getCurrentTime(),
+    );
   }
 
   @Cron('0 8-23/3 * * *')
   async scheduleTistoryPostingAboutHealth() {
     await this.handleTistoryPosting('health');
+  }
+  */
+
+  async testRenderPart() {
+    const category = 'health';
+
+    // [START] 티스토리 포스팅 자동화 프로세스 시작!
+    console.log(
+      '##### [START] 티스토리 포스팅 자동화 프로세스 시작: ',
+      this.dateService.getCurrentTime(),
+    );
+
+    // [SUPABSE] 마지막 대표 키워드 가져오기
+    const lastKeywordData = await this.getLastKeywordData(category);
+    console.log(
+      '##### [SUPABSE] 마지막 키워드 데이터 가져오기: ',
+      lastKeywordData,
+    );
+
+    // [SUPABSE] 키워드 데이터 가져오기
+    const keywordData = await this.getKeywordData(
+      category,
+      lastKeywordData.primary,
+    );
+    console.log('##### [SUPABSE] 키워드 데이터 가져오기: ', keywordData);
+
+    // [WRTN] Element 데이터 가져오기
+    const elementData = await this.wrtnService.getElementData(
+      keywordData.longTail,
+    );
+    console.log('##### [WRTN] Element Tree 가져오기: ', elementData);
+
+    // [SUPABSE] 링크첨부 데이터 가져오기
+    const relatingData = await this.getRelatingData(keywordData.primary);
+    console.log('##### [SUPABSE] 링크첨부 데이터 가져오기: ', relatingData);
+
+    // [CONTENTS] HTML 태그 리스트 생성
+    const tagList = this.utilsService.renderElementsToTagList(
+      elementData.elements,
+    );
+    console.log('##### [CONTENTS] 태그 리스트 생성: ', tagList);
+
+    // [CONTENTS] 포스팅 내용 생성
+    const postingContent = await this.createPostingContent(
+      tagList,
+      keywordData.longTail,
+    );
+    console.log('##### [CONTENTS] 포스팅 내용 생성: ', postingContent);
+
+    const postingIndex = this.utilsService.renderElementsToIndexTag(
+      elementData.elements,
+    );
+    console.log('##### [CONTENTS] 포스팅 목차 생성: ', postingIndex);
+
+    // [CONTENTS] 포스팅 타이틀 생성
+    const postingTitle = this.utilsService.renderElementsToTitle(
+      elementData.elements,
+    );
+    console.log('##### [CONTENTS] 포스팅 타이틀 생성: ', postingTitle);
+
+    // [CONTENTS] 포스팅 해시태그 리스트 생성
+    const hashTagList = await this.createHashTagList(keywordData.longTail);
+    console.log('##### [CONTENTS] 포스팅 해시태그 리스트 생성: ', hashTagList);
+
+    // [TISTORY] 티스토링 포스팅 업로드
+    const postingData = await this.tistoryService.uploadPosting(
+      postingTitle,
+      postingIndex + postingContent,
+      hashTagList,
+    );
+    console.log('##### [TISTORY] 티스토리 포스팅 업로드: ', postingData);
+
+    // [SUPABASE] 첨부된 데이터 업데이트
+    if (relatingData.id && relatingData.postingUrl) {
+      await this.updateRelatingData(relatingData.id, relatingData.postingUrl);
+    }
+
+    // [START] 티스토리 포스팅 자동화 프로세스 종료!
+    console.log(
+      '##### [START] 티스토리 포스팅 자동화 프로세스 종료: ',
+      this.dateService.getCurrentTime(),
+    );
+  }
+
+  async gptLoginTest() {
+    const { browser, page } = await this.puppeteerService.getBrowser();
+
+    await page.goto('https://aistudio.google.com/prompts/new_chat');
+    await this.utilsService.delayRandomTime('slow');
   }
 }

@@ -1,12 +1,12 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
-import { getWrtnPrompt } from 'src/contants/prompts';
+import { getWrtnPrompt } from 'src/common/contants/prompts';
 import { PuppeteerService } from './puppeteer.service';
 import { UtilsService } from './utils.service';
 
-export interface ElementTree {
+export interface ElementData {
   tag: string;
   text: string;
-  elements: ElementTree[];
+  elements: ElementData[];
 }
 
 @Injectable()
@@ -16,7 +16,7 @@ export class WrtnService {
     private utilsService: UtilsService,
   ) {}
 
-  async getElementTree(keyword: string): Promise<ElementTree> {
+  async getElementData(keyword: string): Promise<ElementData> {
     const prompt = getWrtnPrompt(keyword).replace(/\n/g, ' ');
 
     try {
@@ -72,7 +72,7 @@ export class WrtnService {
     } catch (error) {
       throw new InternalServerErrorException({
         statusCode: 500,
-        message: `wrtn,puppeteer: puppeteer로 뤼튼 ai 작동중 오류. ${error.message}`,
+        message: `[WRTN]: puppeteer로 뤼튼 ai 작동중 오류. ${error.message}`,
       });
     }
   }

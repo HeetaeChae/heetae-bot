@@ -28,3 +28,15 @@ export const getPromptForHashtags = (keyword: string): string => `
 위의 키워드에 대한 해시태그를 아래의 예) 와 같이 ,로 나누어 5가지 생성하라. 단, 앞에 #을 붙이지 않는다.
 예) 해시태그1, 해시태그2, 해시태그3, 해시태그4, 해시태그5
 `;
+
+export const getPromptForImgQuery = (keyword: string) => `
+키워드: ${keyword}
+위의 키워드를 영어 한 단어로 생성하라.
+`;
+
+export const BlogV1Prompts = {
+  descriptionRewriting:
+    '{description}\n위의 내용을 토대로 새롭게 글을 작성하라. 문체는 "~습니다."로 작성.',
+  aiReviewRewriting:
+    '{aiReview}\n위의 내용을 토대로 새롭게 글을 작성하라. 글자수는 300~500자로 작성.',
+};

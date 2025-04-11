@@ -2,12 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { ElementHandle, Page } from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
-import { PuppeteerService } from 'src/common/puppeteer.service';
-import { UtilsService } from 'src/common/utils.service';
-import { DateService } from 'src/common/date.service';
+import { PuppeteerService } from 'src/common/services/puppeteer.service';
+import { UtilsService } from 'src/common/services/utils.service';
+import { DateService } from 'src/common/services/date.service';
 import { HotelInfo, PriceInfo, Star } from './tripdotcom.dto';
 import { Logger } from '@nestjs/common';
-import { GptService } from 'src/common/gpt.service';
+import { GptService } from 'src/common/services/gpt.service';
 import { exec } from 'child_process';
 import { ConfigService } from '@nestjs/config';
 
