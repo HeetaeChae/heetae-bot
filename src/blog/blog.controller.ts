@@ -11,7 +11,7 @@ export class BlogController {
 
   @Get('test')
   async runTest() {
-    return this.blogService.gptLoginTest();
+    return this.blogService.clickBlankTest();
   }
 
   @Get('keyword')

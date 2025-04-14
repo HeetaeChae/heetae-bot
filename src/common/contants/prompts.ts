@@ -35,8 +35,9 @@ export const getPromptForImgQuery = (keyword: string) => `
 `;
 
 export const BlogV1Prompts = {
+  openingMent: '',
   descriptionRewriting:
-    '{description}\n위의 내용을 토대로 새롭게 글을 작성하라. 문체는 "~습니다."로 작성.',
+    '{description}\n위의 글은 호텔을 소개하는 글이다. 이를 토대로 새롭게 글을 작성하라. 문체는 "~습니다."로 작성하되, 글자수는 150~300자로. 그리고 문장의 단락을 나눠 읽기 편하게 구성.',
   aiReviewRewriting:
-    '{aiReview}\n위의 내용을 토대로 새롭게 글을 작성하라. 글자수는 300~500자로 작성.',
+    '{aiReview}\n위의 글은 호텔 리뷰 글이다. 이를 토대로 새롭게 글을 작성하라. 문체는 "~습니다."로 작성하되, 글자수는 100자 이내로.',
 };

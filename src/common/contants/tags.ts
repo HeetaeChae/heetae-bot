@@ -1,5 +1,5 @@
 export const getIndexTag = (indexList: string): string => `
-<div style="margin: auto; margin-bottom: 3em; width: 250px; background: #f8f9fa; border: 1px solid #ddd; padding: 10px; border-radius: 5px; box-shadow: 2px 2px 10px rgba(0,0,0,0.1); font-size: 14px;">
+<div style="margin-bottom: 10px; width: 100%; border: 1px solid #ddd; padding: 15px; border-radius: 5px;">
   <h3 style="margin-top: 0; font-size: 16px; color: #333; text-align: center;">목차</h3>
   <ul style="list-style: none; padding: 0; margin: 0;">
    ${indexList}
@@ -36,3 +36,5 @@ export const getYoutubeLinkTag = (
   </div>
 </div>
 </a>`;
+
+export const BlogV1Tags = {};

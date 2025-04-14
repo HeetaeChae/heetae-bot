@@ -5,6 +5,6 @@ export interface HotelInfoV1 {
   address: string;
   description: string;
   trafficInfos: string[];
-  aiReview: string;
+  aiReview: string | null;
   lowestPrice: number;
 }

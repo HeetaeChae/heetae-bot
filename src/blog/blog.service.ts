@@ -409,4 +409,20 @@ export class BlogService {
     await page.goto('https://aistudio.google.com/prompts/new_chat');
     await this.utilsService.delayRandomTime('slow');
   }
+
+  async clickBlankTest() {
+    const { browser, page } = await this.puppeteerService.getBrowser();
+
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'load' }),
+      page.goto('https://kr.trip.com/hotels/?locale=ko-kr&curr=KRW'),
+    ]);
+
+    const priceOpenerEl = await page.waitForSelector('.calendar-container-v8');
+    await priceOpenerEl.click();
+    await this.utilsService.delayRandomTime('quick');
+
+    const y = await page.evaluate(() => window.innerHeight);
+    await page.mouse.click(1, y - 1); // 좌측 하단 클릭
+  }
 }

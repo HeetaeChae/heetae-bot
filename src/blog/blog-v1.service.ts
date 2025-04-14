@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Page } from 'puppeteer';
 
 import { BlogV1Prompts } from 'src/common/contants/prompts';
+import { BlogV1Styles } from 'src/common/contants/styles';
+import { BlogV1Templates } from 'src/common/contants/templates';
 import { HotelType } from 'src/common/enums/hotel-type.enum';
 import { HotelInfoV1 } from 'src/common/interfaces/hotel-info.interface';
 import { GptService } from 'src/common/services/gpt.service';
@@ -138,6 +140,23 @@ export class BlogV1Service {
         page.goto(url),
       ]);
 
+      // 2-7. 최저가 찾기
+      await page.click('.i7MrTkrtLpx7POgWf7Hz');
+      await page.waitForSelector('li.is-selected span.price');
+      const priceTexts = await page.$$eval('span.price', (els) =>
+        els.map((el) => (el as HTMLElement).innerText),
+      );
+      const prices = priceTexts
+        .map((priceText) => {
+          const sliced = priceText.slice(0, -1);
+          return Number(sliced);
+        })
+        .filter((price) => price > 0);
+      const lowestPrice = Math.min(...prices);
+      const y = await page.evaluate(() => window.innerHeight);
+      await page.mouse.click(1, y - 1);
+      console.log('lowestPrice', lowestPrice);
+
       // 2-2. 호텔 사진 urls
       const imgUrls = [];
       const imgOpenerEls = await page.$$('.headAlbum_headAlbum_img__vfjQm');
@@ -205,39 +224,20 @@ export class BlogV1Service {
 
       // 2-6. AI 리뷰 요약
       await page.click('.headReviewNew_reviewSwitch-review_numA__Qv6sO');
-      const aiReviewEl = await page.waitForSelector('._4ZN0iXixwnbuH73hRaw');
-      const aiReview = await page.evaluate(
-        (el) => (el as HTMLElement).innerText,
-        aiReviewEl,
-      );
+      await this.utilesService.delayRandomTime('quick');
+      const aiReviewEl = await page.$('._4ZN0iXixwnbuH73hRaw');
+      let aiReview = null;
+      if (aiReviewEl) {
+        aiReview = await page.evaluate(
+          (el) => (el as HTMLElement).innerText,
+          aiReviewEl,
+        );
+      }
       const drawerCloser = await page.waitForSelector(
         '.u-icon_ic_new_close_line',
       );
-      drawerCloser.click();
+      await drawerCloser.click();
       console.log('aiReview', aiReview);
-
-      // 2-7. 최저가 찾기
-      await this.utilesService.delayRandomTime('quick');
-      await page.evaluate(() => {
-        window.scrollTo(0, 0);
-      });
-      const priceOpenerEl = await page.waitForSelector('.i7MrTkrtLpx7POgWf7Hz');
-      await priceOpenerEl.evaluate((el) =>
-        el.scrollIntoView({ behavior: 'auto', block: 'center' }),
-      );
-      await priceOpenerEl.click();
-      await page.waitForSelector('li.is-selected span.price');
-      const priceTexts = await page.$$eval('span.price', (els) =>
-        els.map((el) => (el as HTMLElement).innerText),
-      );
-      const prices = priceTexts
-        .map((priceText) => {
-          const sliced = priceText.slice(0, -1);
-          return Number(sliced);
-        })
-        .filter((price) => price > 0);
-      const lowestPrice = Math.min(...prices);
-      console.log('lowestPrice', lowestPrice);
 
       const hotelInfo: HotelInfoV1 = {
         imgUrls,
@@ -256,14 +256,14 @@ export class BlogV1Service {
   }
 
   // 3. GPT => 문장 다듬기
-  async rewriteHotelInfos(hotelInfos: HotelInfoV1[]) {
+  async rewriteHotelInfos(hotelInfos: HotelInfoV1[]): Promise<HotelInfoV1[]> {
     const rewritedHotelInfos = [];
 
     for (const hotelInfo of hotelInfos) {
       const { description, aiReview, ...etc } = hotelInfo;
 
       // 3-1. 호텔 소개 글 다듬기
-      const rewritedDesc = await this.gptService.generateGptResponse(
+      const rewritedDescription = await this.gptService.generateGptResponse(
         BlogV1Prompts.descriptionRewriting.replace(
           '{description}',
           description,
@@ -272,19 +272,43 @@ export class BlogV1Service {
       );
 
       // 3-2. 호텔 ai 리뷰 요약 글 다듬기
-      const rewritedAiReivew = await this.gptService.generateGptResponse(
-        BlogV1Prompts.descriptionRewriting.replace('{aiReview}', aiReview),
-        0.7,
-      );
+      let rewritedAiReivew = null;
+      if (aiReview) {
+        rewritedAiReivew = await this.gptService.generateGptResponse(
+          BlogV1Prompts.aiReviewRewriting.replace('{aiReview}', aiReview),
+          0.7,
+        );
+      }
 
       rewritedHotelInfos.push({
-        description: rewritedDesc,
+        description: rewritedDescription,
         aiReview: rewritedAiReivew,
         ...etc,
       });
     }
 
     return rewritedHotelInfos;
+  }
+
+  // 4. BLOG => 블로그 컨텐츠 (HTML) 생성하기
+  createHTMLContent(hotelInfos: HotelInfoV1[]) {
+    // 4-1. 도입부 (intro) 생성
+    const intro = '';
+
+    // 4-2. 목차(index) 생성
+    const outline = BlogV1Templates.createOutlineHTML(hotelInfos, BlogV1Styles);
+
+    // 4-3. 단락 / 본문(sections) 생성
+    const sectionHTML = hotelInfos
+      .map((hotelInfo, index) =>
+        BlogV1Templates.createSectionHTML(hotelInfo, index, BlogV1Styles),
+      )
+      .join('\n');
+
+    // 4-3.
+
+    const HTML = `${outline}\n${sectionHTML}\n`;
+    return HTML;
   }
 
   async devHotelPosting() {
@@ -305,10 +329,12 @@ export class BlogV1Service {
     // 3. GPT => 문장 다듬기
     const rewritedHotelInfos = await this.rewriteHotelInfos(hotelInfos);
 
-    // 4. HTML => HTML 생성하기
+    // 4. BLOG => 블로그 내용 (HTML) 생성하기
+    const HTMLContent = this.createHTMLContent(rewritedHotelInfos);
 
     console.log('hotelUrls', hotelPageUrls);
     console.log('hotelInfos', hotelInfos);
     console.log('rewritedHotelInfos', rewritedHotelInfos);
+    console.log(HTMLContent);
   }
 }
