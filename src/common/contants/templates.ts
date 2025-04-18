@@ -2,7 +2,13 @@ import { HotelInfoV1 } from '../interfaces/hotel-info.interface';
 import { BlogV1Styles } from './styles';
 
 export const BlogV1Templates = {
-  createIntroHTML: () => {},
+  createIntroHTML: (intro: string, styles: typeof BlogV1Styles) => {
+    return `
+      <p style="${styles.introText}">
+        ${intro}
+      </p>
+    `;
+  },
   createOutlineHTML: (
     hotelInfos: HotelInfoV1[],
     styles: typeof BlogV1Styles,
@@ -28,25 +34,14 @@ export const BlogV1Templates = {
   ) => {
     const count = index + 1;
 
-    const {
-      imgUrls,
-      name,
-      subName,
-      address,
-      description,
-      trafficInfos,
-      aiReview,
-      lowestPrice,
-    } = hotelInfo;
+    const { imgUrls, name, subName, address, description, lowestPrice } =
+      hotelInfo;
 
     const imgHTML = imgUrls
       .map(
         (url, index) =>
           `<img style="${styles.imgContent}" src="${url}" alt="${subName} ${index + 1}"/>`,
       )
-      .join('\n');
-    const trafficInfoHTML = trafficInfos
-      .map((text) => `<li>${text}</li>`)
       .join('\n');
 
     return `
@@ -63,19 +58,8 @@ export const BlogV1Templates = {
           ${imgHTML}
         </div>
         <div style="${styles.textBoxContainer}">
-          <p><strong>호텔 소개글</strong></p>
-          <br />
           <p>${description}</p> 
         </div>
-        <div style="${styles.textBoxContainer}">
-          <p><strong>ai가 요약한 호텔 리뷰</strong></p>
-          <br />
-          <p>${aiReview}</p>  
-        </div>
-        <p>주변 교통</p>
-        <ul>
-          ${trafficInfoHTML}
-        </ul>
       </div>
     `;
   },

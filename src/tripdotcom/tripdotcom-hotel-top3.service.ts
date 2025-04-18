@@ -69,10 +69,10 @@ export class TripdotcomHotelTop3Service {
 
       const navIdInput = await navLoginPage.$('.input_id');
       const navPassInput = await navLoginPage.$('.input_pw');
-      await navIdInput.type(this.configService.get<string>('NAV_ID'), {
+      await navIdInput.type(this.configService.get<string>('NAVER_ID'), {
         delay: 300,
       });
-      await navPassInput.type(this.configService.get<string>('NAV_PASS'), {
+      await navPassInput.type(this.configService.get<string>('NAVER_PASS'), {
         delay: 300,
       });
       await this.utilsService.delayRandomTime('quick');

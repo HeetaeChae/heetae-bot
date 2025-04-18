@@ -10,9 +10,7 @@ export class BlogController {
   ) {}
 
   @Get('test')
-  async runTest() {
-    return this.blogService.clickBlankTest();
-  }
+  async runTest() {}
 
   @Get('keyword')
   async createKeywords(

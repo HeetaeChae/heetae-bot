@@ -6,25 +6,18 @@ import { GptService } from 'src/common/services/gpt.service';
 import { PexelsService } from 'src/common/services/pexels.service';
 import { YouTubeService } from 'src/common/services/yotube.service';
 import { WrtnService } from 'src/common/services/wrtn.service';
-import { htmlStyleMap } from 'src/common/contants/styles';
 import { TistoryService } from 'src/common/services/tistory.service';
 
 import * as crypto from 'crypto';
 import {
   getPromptForHashtags,
-  getPromptForImgKeyword,
   getPromptForImgQuery,
 } from 'src/common/contants/prompts';
-import {
-  getImgContainerTag,
-  getImgTag,
-  getIndexLiTag,
-  getIndexTag,
-  getYoutubeLinkTag,
-} from 'src/common/contants/tags';
+import { getImgTag, getYoutubeLinkTag } from 'src/common/contants/tags';
 import { DateService } from 'src/common/services/date.service';
 import { UtilsService } from 'src/common/services/utils.service';
 import { PuppeteerService } from 'src/common/services/puppeteer.service';
+import { ConfigService } from '@nestjs/config';
 
 globalThis.crypto = crypto as Crypto;
 
@@ -42,6 +35,7 @@ export class BlogService {
     private dateService: DateService,
     private utilsService: UtilsService,
     private puppeteerService: PuppeteerService,
+    private configService: ConfigService,
   ) {}
 
   async saveKeyword(
@@ -247,182 +241,5 @@ export class BlogService {
     newTagList.push(youtubeLinkTag);
 
     return newTagList.join('');
-  }
-
-  /*
-  async handleTistoryPosting(category: Category) {
-    // [START] 티스토리 포스팅 자동화 프로세스 시작!
-    console.log(
-      '##### [START] 티스토리 포스팅 자동화 프로세스 시작: ',
-      this.dateService.getCurrentTime(),
-    );
-
-    // [SUPABSE] 마지막 대표 키워드 가져오기
-    const lastKeywordData = await this.getLastKeywordData(category);
-    console.log(
-      '##### [SUPABSE] 마지막 키워드 데이터 가져오기: ',
-      lastKeywordData,
-    );
-
-    // [SUPABSE] 키워드 데이터
-    const keywordData = await this.getKeywordData(
-      category,
-      lastKeywordData.primary,
-    );
-    console.log('##### [SUPABSE] 키워드 데이터 가져오기: ', keywordData);
-
-    // [WRTN] Element Tree 가져오기
-    const elementData = await this.wrtnService.getElementData(
-      keywordData.longTail,
-    );
-    console.log('##### [WRTN] Element Tree 가져오기: ', elementData);
-
-    // [SUPABSE] 링크첨부 데이터 가져오기
-    const relatingData = await this.getRelatingData(keywordData.primary);
-    console.log('##### [SUPABSE] 링크첨부 데이터 가져오기: ', relatingData);
-
-    // [CONTENTS] 컨텐츠 데이터 생성
-    const contentsData = await this.createPostingContents(
-      elementTree,
-      keywordData.longTail,
-      relatingData.postingUrl,
-    );
-    console.log('##### [CONTENTS] 컨텐츠 데이터 생성하기: ', contentsData);
-
-    // [TISTORY] 티스토링 포스팅 업로드
-    const postingData = await this.tistoryService.uploadPosting(
-      contentsData.title,
-      contentsData.HTMLContent,
-      contentsData.hashTags,
-    );
-    console.log('##### [TISTORY] 티스토리 포스팅 업로드: ', postingData);
-
-    // [SUPABASE] 첨부된 데이터 업데이트
-    if (relatingData.id && relatingData.postingUrl) {
-      await this.updateRelatingData(relatingData.id, relatingData.postingUrl);
-    }
-
-    // 키워드 데이터 업데이트
-    await this.updateKeywordData(
-      keywordData.id,
-      postingUrl,
-      relatingData.postingUrl,
-    );
-
-    // [START] 티스토리 포스팅 자동화 프로세스 종료!
-    console.log(
-      '##### [START] 티스토리 포스팅 자동화 프로세스 종료: ',
-      this.dateService.getCurrentTime(),
-    );
-  }
-
-  @Cron('0 8-23/3 * * *')
-  async scheduleTistoryPostingAboutHealth() {
-    await this.handleTistoryPosting('health');
-  }
-  */
-
-  async testRenderPart() {
-    const category = 'health';
-
-    // [START] 티스토리 포스팅 자동화 프로세스 시작!
-    console.log(
-      '##### [START] 티스토리 포스팅 자동화 프로세스 시작: ',
-      this.dateService.getCurrentTime(),
-    );
-
-    // [SUPABSE] 마지막 대표 키워드 가져오기
-    const lastKeywordData = await this.getLastKeywordData(category);
-    console.log(
-      '##### [SUPABSE] 마지막 키워드 데이터 가져오기: ',
-      lastKeywordData,
-    );
-
-    // [SUPABSE] 키워드 데이터 가져오기
-    const keywordData = await this.getKeywordData(
-      category,
-      lastKeywordData.primary,
-    );
-    console.log('##### [SUPABSE] 키워드 데이터 가져오기: ', keywordData);
-
-    // [WRTN] Element 데이터 가져오기
-    const elementData = await this.wrtnService.getElementData(
-      keywordData.longTail,
-    );
-    console.log('##### [WRTN] Element Tree 가져오기: ', elementData);
-
-    // [SUPABSE] 링크첨부 데이터 가져오기
-    const relatingData = await this.getRelatingData(keywordData.primary);
-    console.log('##### [SUPABSE] 링크첨부 데이터 가져오기: ', relatingData);
-
-    // [CONTENTS] HTML 태그 리스트 생성
-    const tagList = this.utilsService.renderElementsToTagList(
-      elementData.elements,
-    );
-    console.log('##### [CONTENTS] 태그 리스트 생성: ', tagList);
-
-    // [CONTENTS] 포스팅 내용 생성
-    const postingContent = await this.createPostingContent(
-      tagList,
-      keywordData.longTail,
-    );
-    console.log('##### [CONTENTS] 포스팅 내용 생성: ', postingContent);
-
-    const postingIndex = this.utilsService.renderElementsToIndexTag(
-      elementData.elements,
-    );
-    console.log('##### [CONTENTS] 포스팅 목차 생성: ', postingIndex);
-
-    // [CONTENTS] 포스팅 타이틀 생성
-    const postingTitle = this.utilsService.renderElementsToTitle(
-      elementData.elements,
-    );
-    console.log('##### [CONTENTS] 포스팅 타이틀 생성: ', postingTitle);
-
-    // [CONTENTS] 포스팅 해시태그 리스트 생성
-    const hashTagList = await this.createHashTagList(keywordData.longTail);
-    console.log('##### [CONTENTS] 포스팅 해시태그 리스트 생성: ', hashTagList);
-
-    // [TISTORY] 티스토링 포스팅 업로드
-    const postingData = await this.tistoryService.uploadPosting(
-      postingTitle,
-      postingIndex + postingContent,
-      hashTagList,
-    );
-    console.log('##### [TISTORY] 티스토리 포스팅 업로드: ', postingData);
-
-    // [SUPABASE] 첨부된 데이터 업데이트
-    if (relatingData.id && relatingData.postingUrl) {
-      await this.updateRelatingData(relatingData.id, relatingData.postingUrl);
-    }
-
-    // [START] 티스토리 포스팅 자동화 프로세스 종료!
-    console.log(
-      '##### [START] 티스토리 포스팅 자동화 프로세스 종료: ',
-      this.dateService.getCurrentTime(),
-    );
-  }
-
-  async gptLoginTest() {
-    const { browser, page } = await this.puppeteerService.getBrowser();
-
-    await page.goto('https://aistudio.google.com/prompts/new_chat');
-    await this.utilsService.delayRandomTime('slow');
-  }
-
-  async clickBlankTest() {
-    const { browser, page } = await this.puppeteerService.getBrowser();
-
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'load' }),
-      page.goto('https://kr.trip.com/hotels/?locale=ko-kr&curr=KRW'),
-    ]);
-
-    const priceOpenerEl = await page.waitForSelector('.calendar-container-v8');
-    await priceOpenerEl.click();
-    await this.utilsService.delayRandomTime('quick');
-
-    const y = await page.evaluate(() => window.innerHeight);
-    await page.mouse.click(1, y - 1); // 좌측 하단 클릭
   }
 }
