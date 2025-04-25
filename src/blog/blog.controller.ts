@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { BlogV1Service } from './blog-v1.service';
+import { BlogV2Service } from './blog-v2.service';
 import { BlogService } from './blog.service';
 
 @Controller('blog')
@@ -7,10 +8,13 @@ export class BlogController {
   constructor(
     private blogService: BlogService,
     private blogV1Service: BlogV1Service,
+    private blogV2Service: BlogV2Service,
   ) {}
 
   @Get('test')
-  async runTest() {}
+  async runTest() {
+    return this.blogService.testHandleRange();
+  }
 
   @Get('keyword')
   async createKeywords(
@@ -27,7 +31,7 @@ export class BlogController {
 
   @Get('dev-hotel-posting')
   async devHotelPosting() {
-    return this.blogV1Service.devHotelPosting();
+    return this.blogV2Service.devBlogPosting();
   }
 
   /*

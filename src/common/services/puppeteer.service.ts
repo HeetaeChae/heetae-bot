@@ -51,4 +51,89 @@ export class PuppeteerService {
       });
     }
   }
+
+  async getElementByText(
+    page: Page,
+    elSelector: string,
+    elText: string,
+  ): Promise<ElementHandle | null> {
+    const els = await page.$$(elSelector);
+    for (const el of els) {
+      const text = await el.evaluate((el) => el.textContent?.trim());
+      if (text?.includes(elText)) {
+        return el;
+      }
+    }
+    return null;
+  }
+
+  async clickElementByText(
+    page: Page,
+    elSelector: string,
+    elText: string,
+  ): Promise<boolean> {
+    const els = await page.$$(elSelector);
+    for (const el of els) {
+      const text = await el.evaluate((el) => el.textContent?.trim());
+      if (text?.includes(elText)) {
+        await el.click();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async handleRangeSlider(
+    page: Page,
+    sliderSelector: string,
+    targetPrice: { min: number; max: number },
+    priceTextSelector: string,
+  ) {
+    const sliderEl = await page.waitForSelector(sliderSelector);
+    const sliderBox = await sliderEl.boundingBox();
+
+    const x = {
+      min: sliderBox.x,
+      max: sliderBox.x + sliderBox.width,
+    };
+    const y = sliderBox.y + sliderBox.height / 2;
+
+    // min값 조정
+    await page.mouse.move(x.min, y);
+    await page.mouse.down();
+
+    let minPrice = 0;
+    let curMinX = x.min;
+    while (minPrice <= targetPrice.min) {
+      curMinX += 1;
+      await page.mouse.move(curMinX, y);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const priceText = await page.$$eval(priceTextSelector, (els) =>
+        els[0]?.textContent?.replace(/[^\d]/g, ''),
+      );
+      const price = Number(priceText);
+      minPrice = price;
+    }
+
+    await page.mouse.up();
+
+    // max값 조정
+    await page.mouse.move(x.max, y);
+    await page.mouse.down();
+
+    let maxPrice = 1000000;
+    let curMaxX = x.max;
+    while (maxPrice >= targetPrice.max) {
+      curMaxX -= 3;
+      await page.mouse.move(curMaxX, y);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const priceText = await page.$$eval(priceTextSelector, (els) =>
+        els[1]?.textContent?.replace(/[^\d]/g, ''),
+      );
+      const price = Number(priceText);
+      maxPrice = price;
+    }
+
+    await page.mouse.up();
+  }
 }

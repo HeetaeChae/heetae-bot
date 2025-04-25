@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Page } from 'puppeteer';
+import { HOTEL_TITLE_TEMPLATES } from 'src/common/contants/hotel-blog-templates';
 
 import { BlogV1Prompts } from 'src/common/contants/prompts';
 import { BlogV1Styles } from 'src/common/contants/styles';
 import { BlogV1Templates } from 'src/common/contants/templates';
-import { HotelType, HotelTypeDesc } from 'src/common/enums/hotel-type.enum';
+import { HotelType } from 'src/common/enums/hotel-type.enum';
 import { HotelInfoV1 } from 'src/common/interfaces/hotel-info.interface';
 import { GptService } from 'src/common/services/gpt.service';
 import { PuppeteerService } from 'src/common/services/puppeteer.service';
@@ -61,31 +62,6 @@ export class BlogV1Service {
     ]);
 
     // 1-3. 호텔 타입 필터링
-    const clickSortingTap = async (index: number): Promise<void> => {
-      await this.utilsService.delayRandomTime('quick');
-      await page.click('.tab-sort-v8');
-      const list = await page.$$('.drop-options');
-      await list[index].click();
-    };
-    switch (type) {
-      case HotelType.GOOD_REVIEW:
-        await clickSortingTap(2);
-        break;
-      case HotelType.GOOD_LOCATION:
-        await clickSortingTap(1);
-        break;
-      case HotelType.GOOD_PRICE:
-        await clickSortingTap(3);
-        break;
-      case HotelType.RECOMMEND:
-        await clickSortingTap(0);
-        break;
-      case HotelType.LUXURY:
-        await clickSortingTap(5);
-        break;
-      default:
-        break;
-    }
 
     // 1-4. 호텔 url 가져오기
     await this.utilsService.delayRandomTime('slow');
@@ -314,7 +290,7 @@ export class BlogV1Service {
 
   async devHotelPosting() {
     const city = '후쿠오카';
-    const hotelType = HotelType.GOOD_REVIEW;
+    const hotelType = HotelType.AMENITY_OCEAN_VIEW;
 
     const { browser, page } = await this.puppeteerService.getBrowser();
 
@@ -335,7 +311,10 @@ export class BlogV1Service {
     console.log(rewritedHotelInfos);
 
     // 5. GPT => 인트로 글 쓰기
-    const writedIntro = await this.writeIntro(city, HotelTypeDesc[hotelType]);
+    const writedIntro = await this.writeIntro(
+      city,
+      HOTEL_TITLE_TEMPLATES[hotelType],
+    );
     console.log(writedIntro);
 
     // 6. HTML => 블로그 내용 (HTML) 생성하기

@@ -242,4 +242,69 @@ export class BlogService {
 
     return newTagList.join('');
   }
+
+  async testHandleRange() {
+    const targetMin = 0;
+    const targetMax = 100000;
+
+    const { browser, page } = await this.puppeteerService.getBrowser();
+
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'load' }),
+      page.goto('https://www.google.com/travel/search?q=후쿠오카'),
+    ]);
+
+    await page.click(
+      '.VfPpkd-LgbsSe.VfPpkd-LgbsSe-OWXEXe-Bz112c-M1Soyc.VfPpkd-LgbsSe-OWXEXe-dgl2Hf.ksBjEc.lKxP2d.LQeN7.bRx3h.x4Vnpe.yJQRU.sIWnMc.hNyRxf.cd29Sd',
+    );
+
+    await this.utilsService.delayRandomTime('quick');
+
+    const sliderEl = await page.waitForSelector(
+      '.undefined.Cs7q4e.UlwoYd.VfPpkd-SxecR.VfPpkd-SxecR-OWXEXe-ALTDOd.VfPpkd-SxecR-OWXEXe-vhhrIe',
+    );
+    const sliderBox = await sliderEl.boundingBox();
+
+    const minX = sliderBox.x;
+    const maxX = sliderBox.x + sliderBox.width;
+    const y = sliderBox.y + sliderBox.height / 2;
+
+    await page.mouse.move(minX, y);
+    await page.mouse.down();
+
+    let minPrice = 0;
+    let curMinX = minX;
+    while (minPrice <= targetMin) {
+      curMinX += 3;
+      await page.mouse.move(curMinX, y);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const priceText = await page.$$eval(
+        '.VfPpkd-MIfjnf-uDEFge-fmcmS',
+        (els) => els[0]?.textContent?.replace(/[^\d]/g, ''),
+      );
+      const price = Number(priceText);
+      minPrice = price;
+    }
+
+    await page.mouse.up();
+
+    await page.mouse.move(maxX, y);
+    await page.mouse.down();
+
+    let maxPrice = 1000000;
+    let curMaxX = maxX;
+    while (maxPrice >= targetMax) {
+      curMaxX -= 3;
+      await page.mouse.move(curMaxX, y);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const priceText = await page.$$eval(
+        '.VfPpkd-MIfjnf-uDEFge-fmcmS',
+        (els) => els[1]?.textContent?.replace(/[^\d]/g, ''),
+      );
+      const price = Number(priceText);
+      maxPrice = price;
+    }
+
+    await page.mouse.up();
+  }
 }
