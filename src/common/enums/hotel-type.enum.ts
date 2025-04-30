@@ -17,4 +17,5 @@ export enum HotelType {
   GUEST_FAMILY = '16', // 가족 여행
   GUEST_KID = '17', // 어린이 동반
   GUEST_BABY = '18', // 아기 동반
+  RATING_HIGH = '19', // 평점 높은
 }

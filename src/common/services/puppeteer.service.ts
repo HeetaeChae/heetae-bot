@@ -105,9 +105,9 @@ export class PuppeteerService {
     let minPrice = 0;
     let curMinX = x.min;
     while (minPrice <= targetPrice.min) {
-      curMinX += 1;
+      curMinX += 3;
       await page.mouse.move(curMinX, y);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       const priceText = await page.$$eval(priceTextSelector, (els) =>
         els[0]?.textContent?.replace(/[^\d]/g, ''),
       );
@@ -126,7 +126,7 @@ export class PuppeteerService {
     while (maxPrice >= targetPrice.max) {
       curMaxX -= 3;
       await page.mouse.move(curMaxX, y);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       const priceText = await page.$$eval(priceTextSelector, (els) =>
         els[1]?.textContent?.replace(/[^\d]/g, ''),
       );

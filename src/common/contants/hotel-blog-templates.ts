@@ -21,6 +21,7 @@ export const HOTEL_TITLE_TEMPLATES: Record<HotelType, string> = {
   [HotelType.GUEST_FAMILY]: '{city} 가족여행 추천 호텔 {count}곳',
   [HotelType.GUEST_KID]: '어린이와 함께 가기 좋은 {city} 호텔 BEST {count}',
   [HotelType.GUEST_BABY]: '{city} 아기 동반 가족을 위한 숙소 추천 {count}곳',
+  [HotelType.RATING_HIGH]: '{city} 평점 높은 숙소 BEST {count}',
 };
 
 export const HOTEL_META_DESCRIPTION_TEMPLATES: Record<HotelType, string> = {
@@ -60,6 +61,8 @@ export const HOTEL_META_DESCRIPTION_TEMPLATES: Record<HotelType, string> = {
     '아이와 함께 묵기 좋은 {city} 숙소 {count}곳. 키즈 프렌들리한 호텔만 골라 소개합니다.',
   [HotelType.GUEST_BABY]:
     '아기 동반 여행자를 위한 {city} 호텔 추천 {count}곳. 침대, 욕조, 편의시설까지 고려했습니다.',
+  [HotelType.RATING_HIGH]:
+    '사람들에게 좋은 평가를 받은 {city} 호텔 {count}곳. 만족도 높은, 평점 높은 숙소를 소개해드리겠습니다.',
 };
 
 export const HOTEL_INTRO_TEMPLATES: Record<HotelType, string> = {
@@ -131,5 +134,9 @@ export const HOTEL_INTRO_TEMPLATES: Record<HotelType, string> = {
   [HotelType.GUEST_BABY]: `
 아기와 함께하는 여행은 시설과 침구 하나까지도 중요하죠.  
 {city}에서 아기 동반 고객에게 적합한 호텔 {count}곳을 골라봤어요.
+`,
+  [HotelType.RATING_HIGH]: `
+만족도가 보장되어있는 호텔을 찾으려면 평점 높은 호텔을 찾으면 되죠.
+{city}에서 가장 평점 높은 호텔을 몇 곳 골라봤어요. 바로 소개해드리겠습니다.   
 `,
 };
