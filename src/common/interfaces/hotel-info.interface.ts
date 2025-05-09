@@ -9,7 +9,6 @@ export interface HotelInfoV1 {
 
 export interface HotelInfo {
   name: string;
-  subname: string;
   address: string;
   description: string;
   lowestPrice: number;
@@ -20,4 +19,15 @@ export interface HotelInfo {
     review: string;
     score: string;
   }[];
+}
+
+export interface GoogleHotelInfo {
+  name: string;
+  star: string | null;
+  description: string | null;
+  checkInfo: string | null;
+  address: string | null;
+  contact: string | null;
+  review: { score: string | null; count: string | null; list: any[] | null };
+  imgUrls: string[];
 }

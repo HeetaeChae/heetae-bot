@@ -6,7 +6,7 @@ import { HOTEL_TITLE_TEMPLATES } from 'src/common/contants/hotel-blog-templates'
 import { BlogV1Prompts } from 'src/common/contants/prompts';
 import { BlogV1Styles } from 'src/common/contants/styles';
 import { BlogV1Templates } from 'src/common/contants/templates';
-import { HotelType } from 'src/common/enums/hotel-type.enum';
+import { GoogleHotelType as HotelType } from 'src/common/enums/hotel-type.enum';
 import { HotelInfoV1 } from 'src/common/interfaces/hotel-info.interface';
 import { GptService } from 'src/common/services/gpt.service';
 import { PuppeteerService } from 'src/common/services/puppeteer.service';

@@ -3,17 +3,17 @@ import { ConfigService } from '@nestjs/config';
 import { Page } from 'puppeteer';
 import * as dayjs from 'dayjs';
 
-import { BlogV1Prompts } from 'src/common/contants/prompts';
-import { BlogV1Styles } from 'src/common/contants/styles';
-import { BlogV1Templates } from 'src/common/contants/templates';
-import { HotelType } from 'src/common/enums/hotel-type.enum';
-import { HotelInfoV1 } from 'src/common/interfaces/hotel-info.interface';
+import { GoogleHotelType as HotelType } from 'src/common/enums/hotel-type.enum';
 import { GptService } from 'src/common/services/gpt.service';
 import { PuppeteerService } from 'src/common/services/puppeteer.service';
 import { UtilsService } from 'src/common/services/utils.service';
 
 @Injectable()
 export class BlogV2Service {
+  private hotelCount = { min: 3, max: 7 };
+  private imgCount = 9;
+  private reviewListCount = 3;
+
   constructor(
     private puppeteerService: PuppeteerService,
     private configService: ConfigService,
@@ -28,26 +28,27 @@ export class BlogV2Service {
     ]);
 
     await page.click('.Ryi7tc.hh3Grb', { delay: 500 });
+
     const dayNextBtn = await page.$$('.wdHXy.NMm5M.hhikbc');
     await dayNextBtn[1].click({ count: 90 });
 
-    const countEl = await page.$('.GDEAO');
+    const prevCountEl = await page.$('.GDEAO');
 
-    if (!countEl) {
+    // 검색결과가 없음.
+    if (!prevCountEl) {
       return null;
     }
 
-    const text = await countEl.evaluate((el) => el.textContent);
-    const prevHotelCount = Number(text.replace(/[^\d]/g, ''));
+    const prevCountText = await prevCountEl.evaluate((el) => el.textContent);
+    const prevHotelCount = Number(prevCountText.replace(/[^\d]/g, ''));
 
-    await Promise.all([
-      this.puppeteerService.clickElementByText(
-        page,
-        '.VfPpkd-vQzf8d',
-        '모든 필터',
-      ),
-      this.utilsService.delayRandomTime('quick'),
-    ]);
+    await this.puppeteerService.clickElementByText(
+      page,
+      '.VfPpkd-vQzf8d',
+      '모든 필터',
+    );
+
+    await this.utilsService.delayRandomTime('quick');
 
     await this.puppeteerService.clickElementByText(
       page,
@@ -57,38 +58,34 @@ export class BlogV2Service {
 
     switch (hotelType) {
       case HotelType.PRICE_UNDER_5:
-        const targetPrice1 = { min: 0, max: 50000 };
         await this.puppeteerService.handleRangeSlider(
           page,
           '.undefined.Cs7q4e.UlwoYd.VfPpkd-SxecR.VfPpkd-SxecR-OWXEXe-ALTDOd.VfPpkd-SxecR-OWXEXe-vhhrIe',
-          targetPrice1,
+          { min: 0, max: 50000 },
           '.VfPpkd-MIfjnf-uDEFge-haAclf',
         );
         break;
       case HotelType.PRICE_UNDER_10:
-        const targetPrice2 = { min: 0, max: 50000 };
         await this.puppeteerService.handleRangeSlider(
           page,
           '.undefined.Cs7q4e.UlwoYd.VfPpkd-SxecR.VfPpkd-SxecR-OWXEXe-ALTDOd.VfPpkd-SxecR-OWXEXe-vhhrIe',
-          targetPrice2,
+          { min: 0, max: 100000 },
           '.VfPpkd-MIfjnf-uDEFge-haAclf',
         );
         break;
       case HotelType.PRICE_ABOUT_10:
-        const targetPrice3 = { min: 100000, max: 200000 };
         await this.puppeteerService.handleRangeSlider(
           page,
           '.undefined.Cs7q4e.UlwoYd.VfPpkd-SxecR.VfPpkd-SxecR-OWXEXe-ALTDOd.VfPpkd-SxecR-OWXEXe-vhhrIe',
-          targetPrice3,
+          { min: 100000, max: 200000 },
           '.VfPpkd-MIfjnf-uDEFge-haAclf',
         );
         break;
       case HotelType.PRICE_ABOUT_20:
-        const targetPrice4 = { min: 200000, max: 300000 };
         await this.puppeteerService.handleRangeSlider(
           page,
           '.undefined.Cs7q4e.UlwoYd.VfPpkd-SxecR.VfPpkd-SxecR-OWXEXe-ALTDOd.VfPpkd-SxecR-OWXEXe-vhhrIe',
-          targetPrice4,
+          { min: 200000, max: 300000 },
           '.VfPpkd-MIfjnf-uDEFge-haAclf',
         );
         break;
@@ -182,64 +179,61 @@ export class BlogV2Service {
         break;
     }
 
-    const currentCount = await page
+    await this.utilsService.delayRandomTime('slow');
+
+    const curHotelCountHandle = await page
       .waitForFunction(
         (prevCount) => {
-          const el = document.querySelector('.GDEAO');
-          if (!el) return null;
+          const countEl = document.querySelector('.GDEAO');
+          const curCount = Number(countEl.textContent.replace(/[^\d]/g, ''));
 
-          const currentCount = Number(el.textContent.replace(/[^\d]/g, ''));
-          if (currentCount < prevCount && currentCount > 0) {
-            return currentCount;
+          if (!countEl) return null;
+
+          if (curCount < prevCount) {
+            return curCount;
           }
 
           return null;
         },
-        { timeout: 15000 },
+        { timeout: 10000 },
         prevHotelCount,
       )
-      .then((res) => res.jsonValue())
       .catch(() => null);
 
-    return currentCount;
-  }
-
-  async getHotelUrls(page: Page, searchedCount: number) {
-    if (searchedCount < 3) {
+    if (!curHotelCountHandle) {
       return null;
     }
 
-    const urlsCount = searchedCount >= 7 ? 7 : searchedCount;
+    const curHotelCount = await curHotelCountHandle.jsonValue();
 
-    const hotelUrls = await page.$$eval(
-      '.PVOOXe',
-      (els, urlsCount) =>
-        els.slice(0, urlsCount).map((el) => {
-          const href = el.getAttribute('href');
-          return `https://www.google.com${href}`;
-        }),
-      urlsCount,
+    return curHotelCount;
+  }
+
+  async getGoogleHotelInfos(page: Page) {
+    const hotelUrls = await page.$$eval('.PVOOXe', (els) =>
+      els.map((el) => {
+        const href = el.getAttribute('href');
+        return `https://www.google.com${href}`;
+      }),
     );
 
-    if (hotelUrls.length < 3) {
-      return null;
-    }
-
-    return hotelUrls;
-  }
-
-  async getHotelInfos(page: Page, hotelUrls: string[]) {
     const hotelInfos = [];
 
     for (const url of hotelUrls) {
+      if (hotelInfos.length >= this.hotelCount.max) {
+        break;
+      }
+
       await Promise.all([
         page.waitForNavigation({ waitUntil: 'load' }),
         page.goto(url),
       ]);
 
       const name = await page.$eval('.FNkAEc.o4k8l', (el) =>
-        el.textContent.trim(),
+        el.textContent?.trim(),
       );
+
+      console.log('name', name);
 
       const starEl = await this.puppeteerService.getElementByText(
         page,
@@ -248,144 +242,179 @@ export class BlogV2Service {
       );
       let star = null;
       if (starEl) {
-        star = await starEl.evaluate((el) => el.textContent?.trim());
+        star = await starEl.evaluate((el) => {
+          const text = el.textContent?.trim();
+          return text?.length ? text : null;
+        });
       }
 
-      const reviewBtn = await this.puppeteerService.getElementByText(
+      console.log(name, star);
+
+      await this.puppeteerService.clickElementByText(
         page,
         '.SxZPid.VZhFab',
         '리뷰',
       );
-      await reviewBtn.click();
 
-      const reviewScore =
-        (await page.$eval('.FBsWCd', (el) => el.textContent)) || null;
-      const reviewCount =
-        (await page.$eval('.P2NYOe.GFm7je.sSHqwe', (el) => el.textContent)) ||
-        null;
+      const reviewScore = await page
+        .$eval('.FBsWCd', (el) => {
+          const text = el.textContent?.trim();
+          return text?.length ? text : null;
+        })
+        .catch(() => null);
 
-      const reviewList =
-        (await page.$$eval('.Svr5cf.bKhjM', (els) =>
-          els.slice(0, 3).map((el) => {
-            const authorEl = el.querySelector('.DHIhE.QB2Jof');
-            const author = authorEl?.textContent?.trim() ?? '';
-            const maskedAuthor = author
-              ? `${author[0]}${'*'.repeat(author.length - 1)}`
-              : '';
+      const reviewCount = await page
+        .$eval('.P2NYOe.GFm7je.sSHqwe', (el) => {
+          const text = el.textContent?.trim();
+          return text?.length ? text : null;
+        })
+        .catch(() => null);
 
-            const reviewEl = el.querySelector('.K7oBsc') as HTMLElement;
-            const review = reviewEl?.innerText?.trim() ?? '';
+      console.log(name, reviewScore, reviewCount);
 
-            const formattedReview = review.endsWith('더보기')
-              ? review.slice(0, -3)
-              : review;
+      if (!reviewScore || !reviewCount) {
+        continue;
+      }
 
-            const trimmedReview =
-              formattedReview.length <= 100
-                ? formattedReview
-                : `${formattedReview.slice(0, 100)}...`;
+      const reviewEls = await page.$$('.Svr5cf.bKhjM');
 
-            return { author: maskedAuthor, review: trimmedReview };
-          }),
-        )) || null;
+      console.log('reviewEls', reviewEls, reviewEls.length, '개');
 
-      const infoBtn = await this.puppeteerService.getElementByText(
+      if (reviewEls.length < this.reviewListCount) {
+        continue;
+      }
+
+      const reviewList = [];
+
+      for (const reviewEl of reviewEls) {
+        if (reviewList.length >= this.reviewListCount) break;
+
+        const authorText = await reviewEl
+          .$eval('.DHIhE.QB2Jof', (el) => {
+            const text = el.textContent?.trim();
+            return text?.length ? text : null;
+          })
+          .catch(() => null);
+
+        console.log('authorText', authorText, typeof authorText);
+
+        const author = authorText
+          ? `${authorText[0]}${'*'.repeat(authorText.length - 1)}`
+          : null;
+
+        console.log('author', author, typeof author);
+
+        if (!author) {
+          continue;
+        }
+
+        const contentText = await reviewEl
+          .$eval('.K7oBsc', (el) => {
+            const text = el.textContent?.trim();
+            return text?.length ? text : null;
+          })
+          .catch(() => null);
+
+        let content = contentText;
+
+        if (content) {
+          content = contentText.endsWith('더보기')
+            ? contentText.slice(0, -3)
+            : contentText;
+          content =
+            content.length <= 100 ? content : `${content.slice(0, 100)}...`;
+
+          if (!content) {
+            continue;
+          }
+        }
+
+        console.log('content');
+
+        reviewList.push({ author, content });
+      }
+
+      console.log(reviewList);
+
+      if (reviewList.length < this.reviewListCount) {
+        continue;
+      }
+
+      await this.puppeteerService.clickElementByText(
         page,
         '.SxZPid.VZhFab',
         '정보',
       );
-      await infoBtn.click();
 
-      const d35Els = await page.$$('.D35lie');
-      const xgaEls = await page.$$('.XGa8fd');
-
-      const [description, checkInfo] = await Promise.all([
-        d35Els[0]
-          ?.evaluate((el) => (el as HTMLElement).innerText)
-          .catch(() => null),
-        d35Els[1]
-          ?.evaluate((el) => (el as HTMLElement).innerText)
-          .catch(() => null),
-      ]);
-
-      /*
-      const currentCount = await page
-      .waitForFunction(
-        (prevCount) => {
-          const el = document.querySelector('.GDEAO');
-          if (!el) return null;
-
-          const currentCount = Number(el.textContent.replace(/[^\d]/g, ''));
-          if (currentCount < prevCount && currentCount > 0) {
-            return currentCount;
-          }
-
-          return null;
-        },
-        { timeout: 15000 },
-        prevHotelCount,
-      )
-      .then((res) => res.jsonValue())
-      .catch(() => null);
-      */
-
-      const descEl = (await page.$$('.D35lie')[0]) || null;
-
-      let desc = null;
-
-      if (descEl) {
+      // 정보에 "더보기" 버튼이 있을 경우
+      const descMoreBtn = await page.$('.d6eqsd button');
+      if (descMoreBtn) {
+        await descMoreBtn.click();
       }
 
-      const [address, contact] = await Promise.all([
-        xgaEls[0]
-          ?.evaluate((el) => (el as HTMLElement).innerText)
-          .catch(() => null),
-        xgaEls[1]
-          ?.evaluate((el) => (el as HTMLElement).innerText)
-          .catch(() => null),
-      ]);
-
-      const imgBtn = await this.puppeteerService.getElementByText(
+      // 이미지 urls
+      await this.puppeteerService.clickElementByText(
         page,
         '.SxZPid.VZhFab',
         '사진',
       );
-      await imgBtn.click();
 
-      await page.waitForSelector('.aXvbdb > .NgCL1e');
+      const imgSection = await page
+        .waitForSelector('.aXvbdb > .NgCL1e')
+        .catch(() => null);
 
-      const imgSections = await page.$$('.aXvbdb > .NgCL1e');
+      console.log('imgSection', imgSection);
 
-      const imgUrls = await page.evaluate(async (sectionEl) => {
-        const getImageCount = () => sectionEl.querySelectorAll('img').length;
+      if (!imgSection) {
+        continue;
+      }
 
-        const title =
-          sectionEl.querySelector('.qUbkDc.BgYkof')?.textContent ?? '';
-        const totalImgCount = Number(title.replace(/[^\d]/g, '')) || 0;
+      const imgCount = await imgSection
+        .$eval('.qUbkDc.BgYkof', (el: HTMLElement) => {
+          const text = el.textContent?.trim();
+          return text?.length ? Number(text.replace(/[^\d]/g, '')) : null;
+        })
+        .catch(() => null);
 
-        if (totalImgCount >= 9) {
-          while (getImageCount() < 9) {
-            const moreBtn = sectionEl.querySelector('.Zorfwe') as HTMLElement;
-            if (!moreBtn) break;
+      console.log(
+        'imgCount',
+        imgCount,
+        typeof imgCount,
+        imgCount < this.imgCount,
+      );
 
-            moreBtn.click();
-          }
-        }
+      const isValidImgCount =
+        typeof imgCount === 'number' && imgCount >= this.imgCount;
 
-        const imgs = sectionEl.querySelectorAll('img');
-        return Array.from(imgs).map((img) => img.src);
-      }, imgSections[0]);
+      if (!isValidImgCount) {
+        continue;
+      }
+
+      while (true) {
+        const curImgEls = await imgSection.$$('img');
+        if (curImgEls.length >= this.imgCount) break;
+
+        const moreBtn = await imgSection.$('.Zorfwe');
+        console.log('moreBtn', moreBtn);
+        if (!moreBtn) break;
+
+        await moreBtn.click();
+      }
+
+      const imgUrls = await imgSection.$$eval('img', (els) =>
+        els.map((el) => (el as HTMLImageElement).src),
+      );
 
       hotelInfos.push({
         name,
         star,
-        description,
-        checkInfo,
-        address,
-        contact,
         review: { score: reviewScore, count: reviewCount, list: reviewList },
-        imgUrls,
+        imgUrls: imgUrls.slice(0, 9),
       });
+    }
+
+    if (hotelInfos.length < this.hotelCount.min) {
+      return null;
     }
 
     return hotelInfos;
@@ -394,25 +423,27 @@ export class BlogV2Service {
   async getAffiliateLinks() {}
 
   async devBlogPosting() {
-    const city = '후쿠오카';
-    const hotelType = HotelType.AMENITY_OCEAN_VIEW;
+    const city = '도쿄';
+    const hotelType = HotelType.RATING_HIGH;
 
     const { browser, page } = await this.puppeteerService.getBrowser();
 
     // 1. google 호텔 검색하기
     const searchedCount = await this.searchGoogleHotels(page, city, hotelType);
+    console.log('searchedCount', searchedCount);
 
-    // 2. 검색된 호텔 url 가져오기
-    const hotelUrls = await this.getHotelUrls(page, searchedCount);
+    // if (!searchedCount) return;
 
-    if (!hotelUrls) {
-      return;
-    }
+    // 2. 호텔 정보 가져오기
+    const hotelInfos = await this.getGoogleHotelInfos(page);
+    console.log('hotelInfos', hotelInfos);
 
+    // 3. 제휴 링크 가져오기
+    /*
     // 3. 호텔 정보 가져오기
-    const hotelInfos = await this.getHotelInfos(page, hotelUrls);
     console.log(hotelInfos);
 
     // 4. 제휴 링크 가져오기
+    */
   }
 }

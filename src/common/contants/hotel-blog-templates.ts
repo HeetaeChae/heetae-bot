@@ -1,4 +1,4 @@
-import { HotelType } from '../enums/hotel-type.enum';
+import { GoogleHotelType as HotelType } from '../enums/hotel-type.enum';
 
 export const HOTEL_TITLE_TEMPLATES: Record<HotelType, string> = {
   [HotelType.PRICE_UNDER_5]: '{city} 5만원 이하 가성비 호텔 BEST {count}',
