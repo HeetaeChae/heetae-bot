@@ -1,6 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { BlogV1Service } from './blog-v1.service';
-import { BlogV2Service } from './blog-v2.service';
+import { BlogV1Service } from './v1/blog-v1.service';
+import { BlogV2Service } from './v2/blog-v2.service';
 import { BlogService } from './blog.service';
 
 @Controller('blog')

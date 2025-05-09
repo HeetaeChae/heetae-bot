@@ -430,13 +430,13 @@ export class BlogV2Service {
 
     // 1. google 호텔 검색하기
     const searchedCount = await this.searchGoogleHotels(page, city, hotelType);
-    console.log('searchedCount', searchedCount);
+    console.log(`${city}, total ${searchedCount} 건의 호텔이 검색되었습니다.`);
 
     // if (!searchedCount) return;
 
     // 2. 호텔 정보 가져오기
     const hotelInfos = await this.getGoogleHotelInfos(page);
-    console.log('hotelInfos', hotelInfos);
+    console.log(`total ${hotelInfos.length} 건의 호텔 정보를 수집하였습니다.`);
 
     // 3. 제휴 링크 가져오기
     /*
