@@ -1,4 +1,4 @@
-export enum GoogleHotelType {
+export enum HotelType {
   PRICE_UNDER_5 = '1', // 5만원 이하
   PRICE_UNDER_10 = '2', // 10만원 이하
   PRICE_ABOUT_10 = '3', // 10만원대
@@ -19,3 +19,7 @@ export enum GoogleHotelType {
   GUEST_BABY = '18', // 아기 동반
   RATING_HIGH = '19', // 평점 높은
 }
+
+export enum HotelTypeDescription {}
+
+export enum HotelRegion {}

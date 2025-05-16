@@ -1,4 +1,26 @@
-import { GoogleHotelType as HotelType } from '../enums/hotel-type.enum';
+import { HotelType } from './blog-v2.enum';
+
+export const HOTEL_TYPE_DESCRIPTIONS: Record<HotelType, string> = {
+  [HotelType.PRICE_UNDER_5]: '5만원 이하',
+  [HotelType.PRICE_UNDER_10]: '10만원 이하',
+  [HotelType.PRICE_ABOUT_10]: '10만원대',
+  [HotelType.PRICE_ABOUT_20]: '20만원대',
+  [HotelType.FACILITY_SPA]: '스파 있는',
+  [HotelType.FACILITY_POOL]: '수영장 있는',
+  [HotelType.FACILITY_BAR]: '바 있는',
+  [HotelType.FACILITY_RESORT]: '리조트',
+  [HotelType.FACILITY_HOSTEL]: '호스텔',
+  [HotelType.AMENITY_BREAKFAST]: '조식 포함',
+  [HotelType.AMENITY_OCEAN_VIEW]: '오션뷰',
+  [HotelType.AMENITY_PET]: '애견 동반',
+  [HotelType.STAR_FOUR]: '4성급',
+  [HotelType.STAR_FIVE]: '5성급',
+  [HotelType.GUEST_ALONE]: '혼자 여행객',
+  [HotelType.GUEST_FAMILY]: '가족여행',
+  [HotelType.GUEST_KID]: '어린이 동반',
+  [HotelType.GUEST_BABY]: '아기 동반',
+  [HotelType.RATING_HIGH]: '평점 높은',
+};
 
 export const HOTEL_TITLE_TEMPLATES: Record<HotelType, string> = {
   [HotelType.PRICE_UNDER_5]: '{city} 5만원 이하 가성비 호텔 BEST {count}',
@@ -65,78 +87,27 @@ export const HOTEL_META_DESCRIPTION_TEMPLATES: Record<HotelType, string> = {
     '사람들에게 좋은 평가를 받은 {city} 호텔 {count}곳. 만족도 높은, 평점 높은 숙소를 소개해드리겠습니다.',
 };
 
-export const HOTEL_INTRO_TEMPLATES: Record<HotelType, string> = {
-  [HotelType.PRICE_UNDER_5]: `
-{city} 여행에서 숙소 비용을 아끼고 싶은 분들을 위해 5만원 이하의 호텔 {count}곳을 소개합니다. 
-가격은 낮지만 평점과 후기에서 이미 검증된 호텔만 선별했어요.
-`,
-  [HotelType.PRICE_UNDER_10]: `
-{city}에서 10만원 이하로 묵을 수 있는 가성비 호텔 {count}곳을 엄선했습니다. 
-깔끔한 시설, 위치, 후기가 모두 만족스러운 곳만 정리했어요.
-`,
-  [HotelType.PRICE_ABOUT_10]: `
-10만원대 숙소를 찾고 있다면 이 글을 참고해보세요! {city}에서 실속 있게 즐길 수 있는 호텔 {count}곳을 추천합니다.
-`,
-  [HotelType.PRICE_ABOUT_20]: `
-20만원대 숙소도 부담 없이 즐기고 싶다면? {city}에서 분위기 좋고 후기가 우수한 호텔 {count}곳을 정리해봤습니다.
-`,
-  [HotelType.FACILITY_SPA]: `
-여행의 피로를 풀어주는 최고의 선택, 스파!  
-{city}에서 스파 시설이 있는 감성 호텔 {count}곳을 소개합니다.
-`,
-  [HotelType.FACILITY_POOL]: `
-여름이면 수영장 있는 호텔이 최고죠!  
-{city} 여행자들에게 인기 있는 수영장 호텔 {count}곳을 모아봤어요.
-`,
-  [HotelType.FACILITY_BAR]: `
-밤이 더 아름다운 {city}, 바 있는 호텔에서 특별한 시간을 보내보세요.  
-감성 넘치는 숙소 {count}곳을 소개합니다.
-`,
-  [HotelType.FACILITY_RESORT]: `
-한적한 휴식을 즐기고 싶다면 리조트가 제격이죠.  
-{city} 리조트 스타일 숙소 {count}곳을 추천드립니다.
-`,
-  [HotelType.FACILITY_HOSTEL]: `
-저렴하면서도 후기가 좋은 호스텔을 찾고 있다면, {city}의 추천 호스텔 {count}곳을 확인해보세요!
-`,
-  [HotelType.AMENITY_BREAKFAST]: `
-조식이 맛있는 호텔은 아침의 기분을 바꿔줍니다.  
-{city}에서 조식으로 인기 많은 호텔 {count}곳을 골라봤어요.
-`,
-  [HotelType.AMENITY_OCEAN_VIEW]: `
-오션뷰 숙소만의 낭만, 누구나 한 번쯤 꿈꾸죠?  
-{city}에서 바다가 보이는 호텔 {count}곳을 소개합니다.
-`,
-  [HotelType.AMENITY_PET]: `
-반려견과 함께 떠나는 여행!  
-{city}에서 애견 동반이 가능한 호텔 {count}곳을 정리했습니다.
-`,
-  [HotelType.STAR_FOUR]: `
-너무 고급도 부담스럽고, 너무 저렴한 곳은 싫다면?  
-{city} 4성급 호텔 {count}곳으로 균형 잡힌 여행을 즐겨보세요.
-`,
-  [HotelType.STAR_FIVE]: `
-최상의 휴식을 원하신다면 5성급이 정답!  
-{city}의 5성급 호텔 {count}곳을 추천드립니다.
-`,
-  [HotelType.GUEST_ALONE]: `
-혼자만의 여유를 즐기기 좋은 {city} 혼행 숙소 {count}곳을 소개합니다.  
-안전하고 편안한 공간만 선별했어요.
-`,
-  [HotelType.GUEST_FAMILY]: `
-가족 여행은 호텔 선택이 더 중요하죠.  
-{city}에서 가족 단위로 묵기 좋은 호텔 {count}곳을 추천해드립니다.
-`,
-  [HotelType.GUEST_KID]: `
-아이와 함께하는 여행, 걱정 없이 즐기려면 키즈 프렌들리 호텔이 필요합니다.  
-{city}에서 아이 동반 가족에게 인기 있는 숙소 {count}곳을 소개합니다.
-`,
-  [HotelType.GUEST_BABY]: `
-아기와 함께하는 여행은 시설과 침구 하나까지도 중요하죠.  
-{city}에서 아기 동반 고객에게 적합한 호텔 {count}곳을 골라봤어요.
-`,
-  [HotelType.RATING_HIGH]: `
-만족도가 보장되어있는 호텔을 찾으려면 평점 높은 호텔을 찾으면 되죠.
-{city}에서 가장 평점 높은 호텔을 몇 곳 골라봤어요. 바로 소개해드리겠습니다.   
-`,
+export const GPT_PROMPTS: Record<string, string> = {
+  intro:
+    '{title}\n위의 내용은 블로그 글의 제목이다. 이를 참고하여 블로그 글의 인트로를 300자 정도로 작성하라.',
+  hashtags:
+    '{title}\n위의 내용은 블로그 글의 제목이다. 이를 참고하여 해시태그를 ,로 나누어 5가지 생성하라. 단, 앞에 #을 붙이지 않는다.',
+};
+
+export const CSS_STYLES: Record<string, string> = {
+  title:
+    'margin: 29px 0 22px; text-align: center; font-size: 1.9em; color: #60e800',
+  metaDescription: 'margin: 29px 0 22px; font-size: 1.55em; text-align:center;',
+  intro: 'margin: 29px 0 22px; font-size: 1.15em, line-height: 1.2rem',
+  indexContainer:
+    'margin: 1em 0em; width: 100%; border: 1px solid #ddd; padding: 1em; border-radius: 5px;',
+  indexText: 'text-decoration: none; color: #007bff;',
+  line: 'margin: 20px auto; width: 64px;',
+  sectionTitle:
+    'margin: 29px 0 22px; text-align: center; font-size: 1.55em; color: #419d00',
+  description: 'font-size: 1.15em; line-height: 1.625rem',
+  infoBox: 'margin: 0.5em 0em; border-left: 2px solid lightgray;',
+  empty: 'margin: 1em 0em;',
+  frame: 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5em;',
+  image: 'width: 100%; object-fit: cover;',
 };

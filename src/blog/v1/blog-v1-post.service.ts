@@ -1,4 +1,12 @@
 import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class BlogV1PostService {
+  constructor() {}
+}
+
+/*
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Page } from 'puppeteer';
 import { HOTEL_TITLE_TEMPLATES } from 'src/common/contants/hotel-blog-templates';
@@ -324,3 +332,4 @@ export class BlogV1Service {
     browser.close();
   }
 }
+*/

@@ -16,7 +16,7 @@ export const BlogV1Styles = {
   introText: 'text-align: center; margin: 1em 0em;',
   imgContent: 'width: 100%; object-fit: cover;',
   imgContainer:
-    'display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5em;',
+    'display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5em;',
   outlineText: 'text-decoration: none; color: #007bff;',
   outlineContainer:
     'margin: 1em 0em; width: 100%; border: 1px solid #ddd; padding: 1em; border-radius: 5px;',

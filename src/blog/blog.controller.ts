@@ -1,43 +1,25 @@
-import { Controller, Get, Query } from '@nestjs/common';
-import { BlogV1Service } from './v1/blog-v1.service';
-import { BlogV2Service } from './v2/blog-v2.service';
-import { BlogService } from './blog.service';
+import { Controller, Get, Param } from '@nestjs/common';
+import { BlogV2PostService } from './v2/blog-v2-post.service';
+import { BlogV2KeywordService } from './v2/blog-v2-keyword.service';
+import { BlogV1PostService } from './v1/blog-v1-post.service';
+import { BlogV1KeywordService } from './v1/blog-v1-keyword.service';
 
-@Controller('blog')
+@Controller('api/blog')
 export class BlogController {
   constructor(
-    private blogService: BlogService,
-    private blogV1Service: BlogV1Service,
-    private blogV2Service: BlogV2Service,
+    private blogV1PostService: BlogV1PostService,
+    private blogV1KeywordService: BlogV1KeywordService,
+    private blogV2PostService: BlogV2PostService,
+    private blogV2KeywordService: BlogV2KeywordService,
   ) {}
 
-  @Get('test')
-  async runTest() {
-    return this.blogService.testHandleRange();
+  @Get('create-keyword/v2/:city')
+  async createKeyword(@Param('city') city: string) {
+    return this.blogV2KeywordService.createKeyword(city);
   }
 
-  @Get('keyword')
-  async createKeywords(
-    @Query('category') category: string,
-    @Query('primaryKeyword') primaryKeyword: string,
-    @Query('longTailKeyword') longTailKeyword: string,
-  ) {
-    return this.blogService.saveKeyword(
-      category,
-      primaryKeyword,
-      longTailKeyword,
-    );
+  @Get('create-post/v2')
+  async createPost() {
+    return this.blogV2PostService.createPost();
   }
-
-  @Get('dev-hotel-posting')
-  async devHotelPosting() {
-    return this.blogV2Service.devBlogPosting();
-  }
-
-  /*
-  @Get('tistory')
-  async handleTistoryPost() {
-    return this.blogService.handleTistoryPosting('health');
-  }
-  */
 }

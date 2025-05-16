@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import * as dayjs from 'dayjs';
+
 import { htmlStyleMap } from 'src/common/contants/styles';
 import { getIndexLiTag, getIndexTag } from 'src/common/contants/tags';
 
@@ -77,5 +79,9 @@ export class UtilsService {
     const title = h1Element[0].text;
 
     return title;
+  }
+
+  getDateTime() {
+    return dayjs().format('YYYYMMDD HH:mm:ss');
   }
 }

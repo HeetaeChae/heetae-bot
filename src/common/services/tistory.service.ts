@@ -76,7 +76,7 @@ export class TistoryService {
       await page.type('.textarea_tit', title, { delay: this.delay });
       await this.utilsService.delayRandomTime('quick');
       await page.click('.CodeMirror-code .CodeMirror-line');
-      await page.keyboard.type(HTMLContent, { delay: this.delay });
+      await page.keyboard.type(HTMLContent);
       await this.utilsService.delayRandomTime('quick');
       for (const hashTag of hashtags) {
         await page.type('.tf_g', hashTag, { delay: this.delay });
@@ -100,7 +100,7 @@ export class TistoryService {
       await page.click('#home_subject button');
       await this.utilsService.delayRandomTime('quick');
       const subjectBtn = await page.waitForSelector(
-        '::-p-xpath(//*[@id="home_subject"]/dd/div/div/div/div[44]/span)',
+        '::-p-xpath(//*[@id="home_subject"]/dd/div/div/div/div[4]/span)',
       );
       await subjectBtn.click();
       await this.utilsService.delayRandomTime('quick');
